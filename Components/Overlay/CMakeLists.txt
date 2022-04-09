@@ -18,6 +18,8 @@ list(APPEND HEADER_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/include/OgreOverlay.i)
 file(GLOB SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
+find_package(SDL2)
+
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   set(IMGUI_DIR "${PROJECT_BINARY_DIR}/imgui-1.85" CACHE PATH "")
   if(NOT EXISTS ${IMGUI_DIR})
@@ -33,10 +35,15 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/imgui_demo.cpp)
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp)
   if(FREETYPE_FOUND)
     set(IMGUI_ENABLE_FREETYPE TRUE)
     list(APPEND SOURCE_FILES ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp)
+  endif()
+  if(SDL2_FOUND)
+    list(APPEND SOURCE_FILES
+      ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp)
   endif()
 else()
     list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/OgreImGuiOverlay.cpp")
@@ -88,6 +95,12 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   list(APPEND HEADER_FILES
     ${IMGUI_DIR}/imgui.h
     ${IMGUI_DIR}/imconfig.h)
+  if(SDL2_FOUND)
+    list(APPEND HEADER_FILES
+      ${IMGUI_DIR}/backends/imgui_impl_sdl.h)
+    target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2main SDL2::SDL2)
+    target_include_directories(OgreOverlay PRIVATE ${SDL2_INCLUDE_DIRS})
+  endif()
 endif()
 
 generate_export_header(OgreOverlay 
