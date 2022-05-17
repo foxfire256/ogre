@@ -847,7 +847,7 @@ namespace Ogre {
             void fireShadowTexturesPreCaster(Light* light, Camera* camera, size_t iteration);
             /// Internal method for firing the pre receiver texture shadows event
             void fireShadowTexturesPreReceiver(Light* light, Frustum* f);
-            void sortLightsAffectingFrustum(LightList& lightList);
+            void sortLightsAffectingFrustum(LightList& lightList) const;
         } mShadowRenderer;
 
         /** Internal method to validate whether a Pass should be allowed to render.
@@ -960,7 +960,7 @@ namespace Ogre {
             RealRect scissorRect;
             PlaneList clipPlanes;
             bool scissorValid;
-            unsigned long clipPlanesValid;
+            bool clipPlanesValid;
             LightClippingInfo() : scissorValid(false), clipPlanesValid(false) {}
 
         };
@@ -1328,7 +1328,10 @@ namespace Ogre {
         void _populateLightList(const Vector3& position, Real radius, LightList& destList, uint32 lightMask = 0xFFFFFFFF);
 
         /// @overload
-        void _populateLightList(const SceneNode* sn, Real radius, LightList& destList, uint32 lightMask = 0xFFFFFFFF);
+        void _populateLightList(const SceneNode* sn, Real radius, LightList& destList, uint32 lightMask = 0xFFFFFFFF)
+        {
+            _populateLightList(sn->_getDerivedPosition(), radius, destList, lightMask);
+        }
         /// @}
 
         /// @name Scene Nodes

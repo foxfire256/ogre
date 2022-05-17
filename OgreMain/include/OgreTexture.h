@@ -268,8 +268,8 @@ namespace Ogre {
             
             @param u is a combination of TU_STATIC, TU_DYNAMIC, TU_WRITE_ONLY 
                 TU_AUTOMIPMAP and TU_RENDERTARGET (see TextureUsage enum). You are
-                strongly advised to use HBU_STATIC_WRITE_ONLY wherever possible, if you need to 
-                update regularly, consider HBU_DYNAMIC_WRITE_ONLY.
+                strongly advised to use HBU_GPU_ONLY wherever possible, if you need to
+                update regularly, consider HBU_CPU_TO_GPU.
         */
         void setUsage(int u) { mUsage = u; }
 
@@ -510,6 +510,13 @@ namespace Ogre {
             or from a magic number.
         */
         String getSourceFileType() const;
+
+        /** Returns the maximum number of Mipmaps that can be generated until we reach
+        the mininum possible size. This does not count the base level.
+
+        @return how many times we can divide this texture in 2 until we reach 1x1.
+        */
+        uint32 getMaxMipmaps() const;
 
         static const char* CUBEMAP_SUFFIXES[6];
     };

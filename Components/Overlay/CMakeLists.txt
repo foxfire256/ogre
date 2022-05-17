@@ -21,11 +21,11 @@ file(GLOB SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 find_package(SDL2)
 
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
-  set(IMGUI_DIR "${PROJECT_BINARY_DIR}/imgui-1.85" CACHE PATH "")
+  set(IMGUI_DIR "${PROJECT_BINARY_DIR}/imgui-1.87" CACHE PATH "")
   if(NOT EXISTS ${IMGUI_DIR})
     message(STATUS "Downloading imgui")
     file(DOWNLOAD
-        https://github.com/ocornut/imgui/archive/v1.85.tar.gz
+        https://github.com/ocornut/imgui/archive/v1.87.tar.gz
         ${PROJECT_BINARY_DIR}/imgui.tar.gz)
     execute_process(COMMAND ${CMAKE_COMMAND}
         -E tar xf imgui.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})

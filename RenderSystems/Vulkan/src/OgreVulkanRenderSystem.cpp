@@ -583,7 +583,8 @@ namespace Ogre
         rsc->setCapability( RSC_32BIT_INDEX );
         rsc->setCapability( RSC_TWO_SIDED_STENCIL );
         rsc->setCapability( RSC_STENCIL_WRAP );
-        rsc->setCapability( RSC_USER_CLIP_PLANES );
+        if( mActiveDevice->mDeviceFeatures.shaderClipDistance )
+            rsc->setCapability( RSC_USER_CLIP_PLANES );
         rsc->setCapability( RSC_TEXTURE_3D );
         rsc->setCapability( RSC_NON_POWER_OF_2_TEXTURES );
         rsc->setCapability(RSC_VERTEX_TEXTURE_FETCH);
@@ -596,6 +597,7 @@ namespace Ogre
         rsc->setCapability( RSC_ALPHA_TO_COVERAGE );
         rsc->setCapability( RSC_HW_GAMMA );
         rsc->setCapability( RSC_VERTEX_BUFFER_INSTANCE_DATA );
+        rsc->setCapability(RSC_VERTEX_FORMAT_INT_10_10_10_2);
         rsc->setMaxPointSize( 256 );
 
         //rsc->setMaximumResolutions( 16384, 4096, 16384 );
