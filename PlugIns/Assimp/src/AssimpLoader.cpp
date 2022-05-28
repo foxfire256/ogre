@@ -367,6 +367,10 @@ bool AssimpLoader::_load(const char* name, Assimp::Importer& importer, Mesh* mes
         flags |= aiProcess_JoinIdenticalVertices;
 
     flags |= options.postProcessSteps;
+
+    if((flags & (aiProcess_GenSmoothNormals | aiProcess_GenNormals)) != aiProcess_GenNormals)
+        flags &= ~aiProcess_GenNormals; // prefer smooth normals
+
     importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", options.maxEdgeAngle);
     const aiScene* scene = importer.ReadFile(name, flags);
 
@@ -815,12 +819,12 @@ void AssimpLoader::grabBoneNamesFromNode(const aiScene* mScene, const aiNode* pN
                         aiNode* node = mScene->mRootNode->FindNode(pAIBone->mName.data);
                         while (node)
                         {
-                            if (node->mName.data == pNode->mName.data)
+                            if (node->mName == pNode->mName)
                             {
                                 flagNodeAsNeeded(node->mName.data);
                                 break;
                             }
-                            if (node->mName.data == pNode->mParent->mName.data)
+                            if (node->mName == pNode->mParent->mName)
                             {
                                 flagNodeAsNeeded(node->mName.data);
                                 break;
