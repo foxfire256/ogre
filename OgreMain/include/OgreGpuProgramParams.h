@@ -421,6 +421,7 @@ namespace Ogre {
 
         bool mDirty;
 
+        template <typename T> void _setNamedConstant(const String& name, const T* val, uint32 count);
     public:
         GpuSharedParameters(const String& name);
 
@@ -1273,6 +1274,8 @@ namespace Ogre {
         void copySharedParamSetUsage(const GpuSharedParamUsageList& srcList);
 
         GpuSharedParamUsageList mSharedParamSets;
+
+        template <typename T> void _setNamedConstant(const String& name, const T* val, size_t count);
 
     public:
         GpuProgramParameters();
