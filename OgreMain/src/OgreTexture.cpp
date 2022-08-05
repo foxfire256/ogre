@@ -415,7 +415,7 @@ namespace Ogre {
     //---------------------------------------------------------------------
     void Texture::convertToImage(Image& destImage, bool includeMipMaps)
     {
-        uint32 numMips = includeMipMaps? getNumMipmaps() + 1 : 1;
+        uint32 numMips = includeMipMaps? getNumMipmaps() : 0;
         destImage.create(getFormat(), getWidth(), getHeight(), getDepth(), getNumFaces(), numMips);
 
         for (uint32 face = 0; face < getNumFaces(); ++face)
@@ -540,9 +540,9 @@ namespace Ogre {
         // will determine load status etc again
         ConstImagePtrList imagePtrs;
 
-        for (size_t i = 0; i < loadedImages.size(); ++i)
+        for (auto& img : loadedImages)
         {
-            imagePtrs.push_back(&loadedImages[i]);
+            imagePtrs.push_back(&img);
         }
 
         _loadImages(imagePtrs);

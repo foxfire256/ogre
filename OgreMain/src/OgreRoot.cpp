@@ -142,8 +142,6 @@ namespace Ogre {
 
         // WorkQueue (note: users can replace this if they want)
         DefaultWorkQueue* defaultQ = OGRE_NEW DefaultWorkQueue("Root");
-        // never process responses in main thread for longer than 10ms by default
-        defaultQ->setResponseProcessingTimeLimit(10);
         // match threads to hardware
         int threadCount = OGRE_THREAD_HARDWARE_CONCURRENCY;
         // but clamp it at 2 by default - we dont scale much beyond that currently
@@ -257,6 +255,7 @@ namespace Ogre {
 #endif
 		mCompositorManager.reset(); // needs rendersystem
         mParticleManager.reset(); // may use plugins
+        mMaterialManager.reset(); // may use GPU program manager
         mGpuProgramManager.reset(); // may use plugins
         unloadPlugins();
 
@@ -400,7 +399,7 @@ namespace Ogre {
                 continue;
             }
 
-            for (auto p : settings)
+            for (const auto& p : settings)
             {
                 try
                 {
