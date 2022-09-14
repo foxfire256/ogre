@@ -69,6 +69,10 @@ elseif(UNIX)
     COMPILE_FLAGS "-Wno-cast-qual -Wno-unused-function")
 endif()
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+	set(MACOS TRUE)
+endif()
+
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   target_include_directories(OgreOverlay PUBLIC
     PUBLIC "$<BUILD_INTERFACE:${IMGUI_DIR}>"
@@ -98,7 +102,11 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   if(SDL2_FOUND)
     list(APPEND HEADER_FILES
       ${IMGUI_DIR}/backends/imgui_impl_sdl.h)
-    target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2main SDL2::SDL2)
+	if(MACOS)
+	  target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2)
+	else(MACOS)
+	  target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2main SDL2::SDL2)
+	endif(MACOS)
     target_include_directories(OgreOverlay PRIVATE ${SDL2_INCLUDE_DIRS})
   endif()
 endif()
