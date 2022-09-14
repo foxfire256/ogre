@@ -182,11 +182,11 @@ namespace Ogre {
         PolygonMode mSceneDetail;
 
         // Internal functions for calcs
-        bool isViewOutOfDate(void) const;
+        bool isViewOutOfDate(void) const override;
         /// Signal to update frustum information.
-        void invalidateFrustum(void) const;
+        void invalidateFrustum(void) const override;
         /// Signal to update view information.
-        void invalidateView(void) const;
+        void invalidateView(void) const override;
 
 
         /** Do actual window setting, using parameters set in SetWindow call
@@ -383,10 +383,8 @@ namespace Ogre {
         OGRE_DEPRECATED void setAutoTracking(bool enabled, SceneNode* const target = 0,
             const Vector3& offset = Vector3::ZERO);
 
-        /** Get the derived position of this frustum. */
-        const Vector3& getPositionForViewUpdate(void) const;
-        /** Get the derived orientation of this frustum. */
-        const Quaternion& getOrientationForViewUpdate(void) const;
+        const Vector3& getPositionForViewUpdate(void) const override;
+        const Quaternion& getOrientationForViewUpdate(void) const override;
 #endif
         /** Tells the Camera to contact the SceneManager to render from it's viewpoint.
         @param vp The viewport to render to
@@ -592,18 +590,18 @@ namespace Ogre {
         virtual void forwardIntersect(const Plane& worldPlane, std::vector<Vector4>* intersect3d) const;
 
         /// @copydoc Frustum::isVisible(const AxisAlignedBox&, FrustumPlane*) const
-        bool isVisible(const AxisAlignedBox& bound, FrustumPlane* culledBy = 0) const;
+        bool isVisible(const AxisAlignedBox& bound, FrustumPlane* culledBy = 0) const override;
         /// @copydoc Frustum::isVisible(const Sphere&, FrustumPlane*) const
-        bool isVisible(const Sphere& bound, FrustumPlane* culledBy = 0) const;
+        bool isVisible(const Sphere& bound, FrustumPlane* culledBy = 0) const override;
         /// @copydoc Frustum::isVisible(const Vector3&, FrustumPlane*) const
-        bool isVisible(const Vector3& vert, FrustumPlane* culledBy = 0) const;
+        bool isVisible(const Vector3& vert, FrustumPlane* culledBy = 0) const override;
         /// @copydoc Frustum::getWorldSpaceCorners
-        const Corners& getWorldSpaceCorners(void) const;
+        const Corners& getWorldSpaceCorners(void) const override;
         /// @copydoc Frustum::getFrustumPlane
-        const Plane& getFrustumPlane( unsigned short plane ) const;
+        const Plane& getFrustumPlane( unsigned short plane ) const override;
         /// @copydoc Frustum::projectSphere
         bool projectSphere(const Sphere& sphere, 
-            Real* left, Real* top, Real* right, Real* bottom) const;
+            Real* left, Real* top, Real* right, Real* bottom) const override;
         /// @copydoc Frustum::getNearClipDistance
         Real getNearClipDistance(void) const;
         /// @copydoc Frustum::getFarClipDistance

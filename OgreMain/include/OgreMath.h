@@ -464,7 +464,7 @@ namespace Ogre
             @return
                 A random number in the range from [0,1].
         */
-        static Real UnitRandom ();
+        static float UnitRandom();
 
         /** Generate a random number within the range provided.
             @param fLow
@@ -474,17 +474,13 @@ namespace Ogre
             @return
                 A random number in the range from [fLow,fHigh].
          */
-        static Real RangeRandom (Real fLow, Real fHigh) {
-            return (fHigh-fLow)*UnitRandom() + fLow;
-        }
+        static float RangeRandom(float fLow, float fHigh) { return (fHigh - fLow) * UnitRandom() + fLow; }
 
         /** Generate a random number in the range [-1,1].
             @return
                 A random number in the range from [-1,1].
          */
-        static Real SymmetricRandom () {
-            return 2.0f * UnitRandom() - 1.0f;
-        }
+        static float SymmetricRandom() { return 2.0f * UnitRandom() - 1.0f; }
 
         static void SetRandomValueProvider(RandomValueProvider* provider);
        
@@ -667,8 +663,8 @@ namespace Ogre
             return std::abs(b-a) <= tolerance;
         }
 
-        /** Calculates the tangent space vector for a given set of positions / texture coords. */
-        static Vector3 calculateTangentSpaceVector(
+        /// @deprecated use @ref TangentSpaceCalc
+        OGRE_DEPRECATED static Vector3 calculateTangentSpaceVector(
             const Vector3& position1, const Vector3& position2, const Vector3& position3,
             Real u1, Real v1, Real u2, Real v2, Real u3, Real v3);
 

@@ -103,9 +103,9 @@ static void createRandomEntityClones(Entity* ent, size_t cloneCount, const Vecto
         SceneNode* node = mgr->createSceneNode();
         // Random translate.
         Vector3 nodePos = max - min;
-        nodePos.x *= float(rng())/rng.max();
-        nodePos.y *= float(rng())/rng.max();
-        nodePos.z *= float(rng())/rng.max();
+        nodePos.x *= double(rng())/rng.max();
+        nodePos.y *= double(rng())/rng.max();
+        nodePos.z *= double(rng())/rng.max();
         nodePos += min;
         node->setPosition(nodePos);
         mgr->getRootSceneNode()->addChild(node);
@@ -120,7 +120,7 @@ struct SceneQueryTest : public RootWithoutRenderSystemFixture {
     Camera* mCamera;
     SceneNode* mCameraNode;
 
-    void SetUp() {
+    void SetUp() override {
         RootWithoutRenderSystemFixture::SetUp();
 
         mSceneMgr = mRoot->createSceneManager();
@@ -289,7 +289,7 @@ TEST(Image, Combine)
 
 struct UsePreviousResourceLoadingListener : public ResourceLoadingListener
 {
-    bool resourceCollision(Resource *resource, ResourceManager *resourceManager) { return false; }
+    bool resourceCollision(Resource *resource, ResourceManager *resourceManager) override { return false; }
 };
 
 typedef RootWithoutRenderSystemFixture ResourceLoading;
@@ -322,7 +322,7 @@ TEST_F(ResourceLoading, CollsionUseExisting)
 
 struct DeletePreviousResourceLoadingListener : public ResourceLoadingListener
 {
-    bool resourceCollision(Resource* resource, ResourceManager* resourceManager)
+    bool resourceCollision(Resource* resource, ResourceManager* resourceManager) override
     {
         resourceManager->remove(resource->getName(), resource->getGroup());
         return true;
@@ -448,4 +448,39 @@ TEST(MaterialLoading, LateShadowCaster)
     tech->_load();
 
     EXPECT_TRUE(tech->getShadowCasterMaterial());
+}
+
+TEST(Light, AnimableValue)
+{
+    Light l;
+
+    l.setDiffuseColour(0, 0, 0);
+    auto diffuseColour = l.createAnimableValue("diffuseColour");
+    diffuseColour->applyDeltaValue(ColourValue(1, 2, 3, 0));
+    EXPECT_EQ(l.getDiffuseColour(), ColourValue(1, 2, 3));
+
+    l.setSpecularColour(0, 0, 0);
+    auto specularColour = l.createAnimableValue("specularColour");
+    specularColour->applyDeltaValue(ColourValue(1, 2, 3, 0));
+    EXPECT_EQ(l.getSpecularColour(), ColourValue(1, 2, 3));
+
+    l.setAttenuation(0, 0, 0, 0);
+    auto attenuation = l.createAnimableValue("attenuation");
+    attenuation->applyDeltaValue(Vector4(1, 2, 3, 4));
+    EXPECT_EQ(l.getAttenuation(), Vector4f(1, 2, 3, 4));
+
+    l.setSpotlightInnerAngle(Radian(0));
+    auto spotlightInner = l.createAnimableValue("spotlightInner");
+    spotlightInner->applyDeltaValue(Real(1));
+    EXPECT_EQ(l.getSpotlightInnerAngle(), Radian(1));
+
+    l.setSpotlightOuterAngle(Radian(0));
+    auto spotlightOuter = l.createAnimableValue("spotlightOuter");
+    spotlightOuter->applyDeltaValue(Real(1));
+    EXPECT_EQ(l.getSpotlightOuterAngle(), Radian(1));
+
+    l.setSpotlightFalloff(0);
+    auto spotlightFalloff = l.createAnimableValue("spotlightFalloff");
+    spotlightFalloff->applyDeltaValue(Real(1));
+    EXPECT_EQ(l.getSpotlightFalloff(), 1);
 }

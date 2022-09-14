@@ -242,11 +242,8 @@ namespace Ogre {
         */
         OGRE_DEPRECATED const Vector3& getDirection(void) const;
 
-        /** @copydoc MovableObject::_notifyAttached */
-        void _notifyAttached(Node* parent, bool isTagPoint = false);
-
-        /** @copydoc MovableObject::_notifyMoved */
-        void _notifyMoved(void);
+        void _notifyAttached(Node* parent, bool isTagPoint = false) override;
+        void _notifyMoved(void) override;
 #endif
         /** Sets the range of a spotlight, i.e. the angle of the inner and outer cones
             and the rate of falloff between them.
@@ -320,7 +317,7 @@ namespace Ogre {
         void _updateRenderQueue(RenderQueue* queue) override {} // No rendering
 
         /** @copydoc MovableObject::getMovableType */
-        const String& getMovableType(void) const;
+        const String& getMovableType(void) const override;
 
         /** Retrieves the position of the light including any transform from nodes it is attached to. 
         @param cameraRelativeIfSet If set to true, returns data in camera-relative units if that's been set up (render use)
@@ -390,10 +387,10 @@ namespace Ogre {
         virtual const PlaneBoundedVolumeList& _getFrustumClipVolumes(const Camera* const cam) const;
 
         /// Override to return specific type flag
-        uint32 getTypeFlags(void) const;
+        uint32 getTypeFlags(void) const override;
 
         /// @copydoc AnimableObject::createAnimableValue
-        AnimableValuePtr createAnimableValue(const String& valueName);
+        AnimableValuePtr createAnimableValue(const String& valueName) override;
 
         /** Set this light to use a custom shadow camera when rendering texture shadows.
 
@@ -617,14 +614,14 @@ namespace Ogre {
     class _OgreExport LightFactory : public MovableObjectFactory
     {
     private:
-        MovableObject* createInstanceImpl( const String& name, const NameValuePairList* params);
+        MovableObject* createInstanceImpl( const String& name, const NameValuePairList* params) override;
     public:
         LightFactory() {}
         ~LightFactory() {}
 
         static String FACTORY_TYPE_NAME;
 
-        const String& getType(void) const;
+        const String& getType(void) const override;
     };
     /** @} */
     /** @} */
