@@ -68,6 +68,14 @@ const Vector3i& RenderState::getLightCount() const
     return mLightCount;
 }
 
+void RenderState::addTemplateSubRenderStates(const StringVector& srsTypes)
+{
+    for (auto& srsType : srsTypes)
+    {
+        addTemplateSubRenderState(ShaderGenerator::getSingleton().createSubRenderState(srsType));
+    }
+}
+
 //-----------------------------------------------------------------------
 void RenderState::addTemplateSubRenderState(SubRenderState* subRenderState)
 {
@@ -108,6 +116,17 @@ void RenderState::removeSubRenderState(SubRenderState* subRenderState)
 
     mSubRenderStateList.erase(it);
     ShaderGenerator::getSingleton().destroySubRenderState(subRenderState);
+}
+
+SubRenderState* RenderState::getSubRenderState(const String& type) const
+{
+    for (auto srs : mSubRenderStateList)
+    {
+        if (srs->getType() == type)
+            return srs;
+    }
+
+    return nullptr;
 }
 
 //-----------------------------------------------------------------------
@@ -194,21 +213,13 @@ void TargetRenderState::releasePrograms(Pass* pass)
 static void fixupFFPLighting(TargetRenderState* renderState)
 {
 #ifdef RTSHADER_SYSTEM_BUILD_CORE_SHADERS
-    const SubRenderStateList& subRenderStateList = renderState->getSubRenderStates();
-    auto it = std::find_if(subRenderStateList.begin(), subRenderStateList.end(),
-                           [](const SubRenderState* e) { return e->getType() == FFPLighting::Type; });
+    auto ffpLighting = static_cast<FFPLighting*>(renderState->getSubRenderState(SRS_PER_VERTEX_LIGHTING));
 
-    if (it == subRenderStateList.end())
+    if (!ffpLighting)
         return;
 
-    auto ffpLighting = static_cast<FFPLighting*>(*it);
-
-    it = std::find_if(subRenderStateList.begin(), subRenderStateList.end(),
-                      [](const SubRenderState* e) { return e->getType() == FFPColour::Type; });
-
-    OgreAssert(it != subRenderStateList.end(), "FFPColour required");
-
-    auto ffpColour = static_cast<FFPColour*>(*it);
+    auto ffpColour = static_cast<FFPColour*>(renderState->getSubRenderState(SRS_VERTEX_COLOUR));
+    OgreAssert(ffpColour, "SRS_VERTEX_COLOUR required");
     ffpColour->addResolveStageMask(FFPColour::SF_VS_OUTPUT_DIFFUSE);
 
     if(ffpLighting->getSpecularEnable())

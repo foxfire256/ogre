@@ -124,7 +124,7 @@ void GLSLProgramWriter::writeSourceCode(std::ostream& os, Program* program)
 void GLSLProgramWriter::writeUniformBlock(std::ostream& os, const String& name, int binding,
                                           const UniformParameterList& uniforms)
 {
-    os << "layout(binding = " << binding << ", row_major) uniform " << name << " {";
+    os << "layout(binding = " << binding << ", row_major) uniform " << name << " {\n";
 
     for (const auto& uparam : uniforms)
     {
@@ -134,7 +134,7 @@ void GLSLProgramWriter::writeUniformBlock(std::ostream& os, const String& name, 
         os << ";\n";
     }
 
-    os << "\n};\n";
+    os << "};\n";
 }
 
 void GLSLProgramWriter::writeMainSourceCode(std::ostream& os, Program* program)
@@ -185,6 +185,8 @@ void GLSLProgramWriter::writeMainSourceCode(std::ostream& os, Program* program)
         }
 
         os << "uniform\t";
+        if(mIsGLSLES)
+            os << "highp\t"; // force highp to avoid precision mismatch between VP/ FP
         writeParameter(os, uparam);
         os << ";\n";
     }
@@ -317,6 +319,8 @@ void GLSLProgramWriter::writeInputParameters(std::ostream& os, Function* functio
             }
 
             os << "IN(";
+            if(pParam->isHighP())
+                os << "f32"; // rely on unified shader vor f32vec4 etc.
             os << mGpuConstTypeMap[pParam->getType()];
             os << "\t"; 
             os << paramName;

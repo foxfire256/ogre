@@ -92,7 +92,7 @@ namespace Ogre {
         return _pixelFormats[ord];
     }
     //-----------------------------------------------------------------------
-    size_t PixelUtil::getNumElemBytes( PixelFormat format )
+    uint8 PixelUtil::getNumElemBytes( PixelFormat format )
     {
         return getDescriptionFor(format).elemBytes;
     }
@@ -139,16 +139,13 @@ namespace Ogre {
                 case PF_PVRTC2_4BPP:
                     return (std::max((int)width, 8) * std::max((int)height, 8) * 4 + 7) / 8;
 
-                // Size calculations from the ETC spec
-                // https://www.khronos.org/registry/OpenGL/extensions/OES/OES_compressed_ETC1_RGB8_texture.txt
+                // see https://registry.khronos.org/OpenGL-Refpages/es3/html/glCompressedTexImage2D.xhtml
                 case PF_ETC1_RGB8:
                 case PF_ETC2_RGB8:
-                case PF_ETC2_RGBA8:
                 case PF_ETC2_RGB8A1:
-                    return ((width + 3) / 4) * ((height + 3) / 4) * 8;
-
                 case PF_ATC_RGB:
                     return ((width + 3) / 4) * ((height + 3) / 4) * 8;
+                case PF_ETC2_RGBA8:
                 case PF_ATC_RGBA_EXPLICIT_ALPHA:
                 case PF_ATC_RGBA_INTERPOLATED_ALPHA:
                     return ((width + 3) / 4) * ((height + 3) / 4) * 16;
@@ -192,7 +189,7 @@ namespace Ogre {
         }
     }
     //-----------------------------------------------------------------------
-    size_t PixelUtil::getNumElemBits( PixelFormat format )
+    uint8 PixelUtil::getNumElemBits( PixelFormat format )
     {
         return getDescriptionFor(format).elemBytes * 8;
     }
@@ -280,7 +277,7 @@ namespace Ogre {
         return des.componentType;
     }
     //-----------------------------------------------------------------------
-    size_t PixelUtil::getComponentCount(PixelFormat fmt)
+    uint8 PixelUtil::getComponentCount(PixelFormat fmt)
     {
         const PixelFormatDescription &des = getDescriptionFor(fmt);
         return des.componentCount;

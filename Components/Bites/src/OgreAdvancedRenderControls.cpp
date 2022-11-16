@@ -177,10 +177,10 @@ bool AdvancedRenderControls::keyPressed(const KeyboardEvent& evt) {
         // Grab the scheme render state.
         Ogre::RTShader::RenderState* schemRenderState = mShaderGenerator->getRenderState(Ogre::MSN_SHADERGEN);
 
-        // Add per pixel lighting sub render state to the global scheme render state.
-        // It will override the default FFP lighting sub render state.
+        // Add per vertex lighting sub render state to the global scheme render state.
+        // It will override the default lighting sub render state.
         if (useFFPLighting) {
-            auto perPixelLightModel = mShaderGenerator->createSubRenderState("FFP_Lighting");
+            auto perPixelLightModel = mShaderGenerator->createSubRenderState(Ogre::RTShader::SRS_PER_VERTEX_LIGHTING);
 
             schemRenderState->addTemplateSubRenderState(perPixelLightModel);
         }
@@ -188,12 +188,9 @@ bool AdvancedRenderControls::keyPressed(const KeyboardEvent& evt) {
 
         // Search the per pixel sub render state and remove it.
         else {
-            for (auto srs : schemRenderState->getSubRenderStates()) {
-                // This is the per pixel sub render state -> remove it.
-                if (srs->getType() == "FFP_Lighting") {
-                    schemRenderState->removeSubRenderState(srs);
-                    break;
-                }
+            if (auto srs = schemRenderState->getSubRenderState(Ogre::RTShader::SRS_PER_VERTEX_LIGHTING))
+            {
+                schemRenderState->removeSubRenderState(srs);
             }
         }
 

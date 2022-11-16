@@ -36,9 +36,6 @@ THE SOFTWARE.
 namespace Ogre {
 namespace RTShader {
 
-/** Texturing sub render state implementation of layered blending.
-Derives from FFPTexturing class which derives from SubRenderState class.
-*/
 class _OgreRTSSExport LayeredBlending : public FFPTexturing
 {
 public:
@@ -119,6 +116,9 @@ public:
     */
     void setBlendMode(unsigned short index, BlendMode mode);
 
+    /// @overload
+    bool setBlendMode(uint16 index, const String& mode);
+
     /** 
     Return the blend mode of the given texture unit index.
     */
@@ -133,6 +133,9 @@ public:
     @param customNum The custom parameter number used to control the modification
     */
     void setSourceModifier(unsigned short index, SourceModifier modType, int customNum);
+
+    /// @overload
+    bool setSourceModifier(unsigned short index, const String& modType, int customNum);
 
     /** 
     Returns the source modifier parameters for a given texture unit
@@ -221,25 +224,6 @@ protected:
     @see SubRenderStateFactory::createInstanceImpl.
     */
     SubRenderState* createInstanceImpl() override;
-
-    /** 
-    @Converts string to Enum
-    */
-    LayeredBlending::BlendMode stringToBlendMode(const String &strValue);
-    /** 
-    @Converts Enum to string
-    */
-    String blendModeToString(LayeredBlending::BlendMode blendMode);
-
-    /** 
-    @Converts string to Enum
-    */
-    LayeredBlending::SourceModifier stringToSourceModifier(const String &strValue);
-    
-    /** 
-    @Converts Enum to string
-    */
-    String sourceModifierToString(LayeredBlending::SourceModifier modifier);
 
     /** 
     Returns the LayeredBlending sub-rener state previously created for this material/pass.

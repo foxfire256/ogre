@@ -40,10 +40,10 @@ namespace Ogre
         AutoConstantDefinition(ACT_TRANSPOSE_WORLD_MATRIX,             "transpose_world_matrix",            16, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_INVERSE_TRANSPOSE_WORLD_MATRIX, "inverse_transpose_world_matrix", 16, ET_REAL, ACDT_NONE),
 
-        AutoConstantDefinition(ACT_WORLD_MATRIX_ARRAY_3x4,        "world_matrix_array_3x4",      12, ET_REAL, ACDT_NONE),
-        AutoConstantDefinition(ACT_WORLD_MATRIX_ARRAY,            "world_matrix_array",          16, ET_REAL, ACDT_NONE),
-        AutoConstantDefinition(ACT_WORLD_DUALQUATERNION_ARRAY_2x4, "world_dualquaternion_array_2x4",      8, ET_REAL, ACDT_NONE),
-        AutoConstantDefinition(ACT_WORLD_SCALE_SHEAR_MATRIX_ARRAY_3x4, "world_scale_shear_matrix_array_3x4", 12, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_MATRIX_ARRAY_3x4,        "bone_matrix_array_3x4",      12, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_MATRIX_ARRAY,            "bone_matrix_array",          16, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_DUALQUATERNION_ARRAY_2x4, "bone_dualquaternion_array_2x4",      8, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_SCALE_SHEAR_MATRIX_ARRAY_3x4, "bone_scale_shear_matrix_array_3x4", 12, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_VIEW_MATRIX,                   "view_matrix",                 16, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_INVERSE_VIEW_MATRIX,           "inverse_view_matrix",         16, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_TRANSPOSE_VIEW_MATRIX,              "transpose_view_matrix",             16, ET_REAL, ACDT_NONE),
@@ -184,6 +184,13 @@ namespace Ogre
         AutoConstantDefinition(ACT_LOD_CAMERA_POSITION_OBJECT_SPACE,  "lod_camera_position_object_space", 3, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_LIGHT_CUSTOM,        "light_custom", 4, ET_REAL, ACDT_INT),
         AutoConstantDefinition(ACT_POINT_PARAMS,                    "point_params",                   4, ET_REAL, ACDT_NONE),
+
+        // NOTE: new auto constants must be added before this line, as the following are merely aliases
+        // to allow legacy world_ names in scripts
+        AutoConstantDefinition(ACT_BONE_MATRIX_ARRAY_3x4,        "world_matrix_array_3x4",      12, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_MATRIX_ARRAY,            "world_matrix_array",          16, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_DUALQUATERNION_ARRAY_2x4, "world_dualquaternion_array_2x4",      8, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_BONE_SCALE_SHEAR_MATRIX_ARRAY_3x4, "world_scale_shear_matrix_array_3x4", 12, ET_REAL, ACDT_NONE),
     };
 
     GpuNamedConstants::GpuNamedConstants() : bufferSize(0), registerCount(0) {}
@@ -259,7 +266,7 @@ namespace Ogre
 
         // simple export of all the named constants, no chunks
         // name, physical index
-        for (const auto & i : pConsts->map)
+        for (const auto& i : pConsts->map)
         {
             const String& name = i.first;
             const GpuConstantDefinition& def = i.second;
@@ -307,11 +314,7 @@ namespace Ogre
             readInts(stream, ((uint32*)&def.arraySize), 1);
 
             pDest->map[name] = def;
-
         }
-
-
-
     }
 
     //-----------------------------------------------------------------------------
@@ -406,7 +409,7 @@ namespace Ogre
             GpuConstantDefinition& def = i->second;
             size_t numElems = def.elementSize * def.arraySize;
 
-            for (auto & j : mNamedConstants.map)
+            for (auto& j : mNamedConstants.map)
             {
                 GpuConstantDefinition& otherDef = j.second;
                 // comes after in the buffer
@@ -556,7 +559,7 @@ namespace Ogre
         mCopyDataList.clear();
 
         const GpuConstantDefinitionMap& sharedmap = mSharedParams->getConstantDefinitions().map;
-        for (const auto & i : sharedmap)
+        for (const auto& i : sharedmap)
         {
             const String& pName = i.first;
             const GpuConstantDefinition& shareddef = i.second;
@@ -781,7 +784,7 @@ namespace Ogre
     void GpuProgramParameters::copySharedParamSetUsage(const GpuSharedParamUsageList& srcList)
     {
         mSharedParamSets.clear();
-        for (const auto & i : srcList)
+        for (const auto& i : srcList)
         {
             mSharedParamSets.push_back(GpuSharedParametersUsage(i.getSharedParams(), this));
         }
@@ -795,7 +798,7 @@ namespace Ogre
         memSize += mConstants.size();
         memSize += mRegisters.size()*4;
 
-        for (const auto & ac : mAutoConstants)
+        for (const auto& ac : mAutoConstants)
         {
             memSize += sizeof(ac);
         }
@@ -1416,7 +1419,7 @@ namespace Ogre
     {
         // update existing index if it exists
         bool found = false;
-        for (auto & ac : mAutoConstants)
+        for (auto& ac : mAutoConstants)
         {
             if (ac.physicalIndex == physicalIndex)
             {
@@ -1441,7 +1444,7 @@ namespace Ogre
     {
         // update existing index if it exists
         bool found = false;
-        for (auto & ac : mAutoConstants)
+        for (auto& ac : mAutoConstants)
         {
             if (ac.physicalIndex == physicalIndex)
             {
@@ -1553,7 +1556,7 @@ namespace Ogre
         mActivePassIterationIndex = std::numeric_limits<size_t>::max();
 
         // Autoconstant index is not a physical index
-        for (const auto & ac : mAutoConstants)
+        for (const auto& ac : mAutoConstants)
         {
             // Only update needed slots
             if (ac.variability & mask)
@@ -1868,10 +1871,10 @@ namespace Ogre
                     _writeRawConstant(ac.physicalIndex, source->getInverseTransposeWorldMatrix(),ac.elementCount);
                     break;
 
-                case ACT_WORLD_MATRIX_ARRAY_3x4:
+                case ACT_BONE_MATRIX_ARRAY_3x4:
                     // Loop over matrices
-                    pMatrix = source->getWorldMatrixArray();
-                    numMatrices = source->getWorldMatrixCount();
+                    pMatrix = source->getBoneMatrixArray();
+                    numMatrices = source->getBoneMatrixCount();
                     index = ac.physicalIndex;
                     for (m = 0; m < numMatrices; ++m)
                     {
@@ -1880,14 +1883,14 @@ namespace Ogre
                         ++pMatrix;
                     }
                     break;
-                case ACT_WORLD_MATRIX_ARRAY:
-                    _writeRawConstant(ac.physicalIndex, source->getWorldMatrixArray(),
-                                      source->getWorldMatrixCount());
+                case ACT_BONE_MATRIX_ARRAY:
+                    _writeRawConstant(ac.physicalIndex, source->getBoneMatrixArray(),
+                                      source->getBoneMatrixCount());
                     break;
-                case ACT_WORLD_DUALQUATERNION_ARRAY_2x4:
+                case ACT_BONE_DUALQUATERNION_ARRAY_2x4:
                     // Loop over matrices
-                    pMatrix = source->getWorldMatrixArray();
-                    numMatrices = source->getWorldMatrixCount();
+                    pMatrix = source->getBoneMatrixArray();
+                    numMatrices = source->getBoneMatrixCount();
                     index = ac.physicalIndex;
                     for (m = 0; m < numMatrices; ++m)
                     {
@@ -1897,10 +1900,10 @@ namespace Ogre
                         ++pMatrix;
                     }
                     break;
-                case ACT_WORLD_SCALE_SHEAR_MATRIX_ARRAY_3x4:
+                case ACT_BONE_SCALE_SHEAR_MATRIX_ARRAY_3x4:
                     // Loop over matrices
-                    pMatrix = source->getWorldMatrixArray();
-                    numMatrices = source->getWorldMatrixCount();
+                    pMatrix = source->getBoneMatrixArray();
+                    numMatrices = source->getBoneMatrixCount();
                     index = ac.physicalIndex;
 
                     scaleM = Matrix4::IDENTITY;
@@ -2304,9 +2307,13 @@ namespace Ogre
             return;
 
         if (count > def->arraySize * def->elementSize)
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                        StringUtil::format("Too many values for parameter %s: %zu > %d", name.c_str(), count,
-                                           def->arraySize * def->elementSize));
+        {
+            // The shader compiler may trim the array if the trailing elements
+            // are unused or their usage can be optimized away. Therefore,
+            // a count exceeding the array size not not an error.
+            count = def->arraySize * def->elementSize;
+        }
+
         _writeRawConstants(withArrayOffset(def, name), val, count);
     }
     void GpuProgramParameters::setNamedConstant(const String& name, const float* val, size_t count, size_t multiple)
@@ -2418,7 +2425,7 @@ namespace Ogre
     const GpuProgramParameters::AutoConstantEntry*
     GpuProgramParameters::_findRawAutoConstantEntryFloat(size_t physicalIndex) const
     {
-        for(const auto & ac : mAutoConstants)
+        for(const auto& ac : mAutoConstants)
         {
             // should check that auto is float and not int so that physicalIndex
             // doesn't have any ambiguity
@@ -2446,11 +2453,10 @@ namespace Ogre
         if (mNamedConstants && source.mNamedConstants)
         {
             std::map<size_t, String> srcToDestNamedMap;
-            for (GpuConstantDefinitionMap::const_iterator i = source.mNamedConstants->map.begin();
-                 i != source.mNamedConstants->map.end(); ++i)
+            for (auto& m : source.mNamedConstants->map)
             {
-                const String& paramName = i->first;
-                const GpuConstantDefinition& olddef = i->second;
+                const String& paramName = m.first;
+                const GpuConstantDefinition& olddef = m.second;
                 const GpuConstantDefinition* newdef = _findNamedConstantDefinition(paramName, false);
                 if (newdef)
                 {
@@ -2487,7 +2493,7 @@ namespace Ogre
                 }
             }
 
-            for (const auto & autoEntry : source.mAutoConstants)
+            for (const auto& autoEntry : source.mAutoConstants)
             {
                 // find dest physical index
                 std::map<size_t, String>::iterator mi = srcToDestNamedMap.find(autoEntry.physicalIndex);
@@ -2506,7 +2512,7 @@ namespace Ogre
             }
 
             // Copy shared param sets
-            for (const auto & usage : source.mSharedParamSets)
+            for (const auto& usage : source.mSharedParamSets)
             {
                 if (!isUsingSharedParameters(usage.getName()))
                 {
@@ -2542,7 +2548,6 @@ namespace Ogre
     const GpuProgramParameters::AutoConstantDefinition*
     GpuProgramParameters::getAutoConstantDefinition(const size_t idx)
     {
-
         if (idx < getNumAutoConstantDefinitions())
         {
             // verify index is equal to acType
@@ -2584,7 +2589,7 @@ namespace Ogre
     //---------------------------------------------------------------------
     bool GpuProgramParameters::isUsingSharedParameters(const String& sharedParamsName) const
     {
-        for (const auto & mSharedParamSet : mSharedParamSets)
+        for (const auto& mSharedParamSet : mSharedParamSets)
         {
             if (mSharedParamSet.getName() == sharedParamsName)
                 return true;

@@ -30,7 +30,6 @@ THE SOFTWARE.
 
 #define SGX_LIB_INTEGRATEDPSSM                      "SGXLib_IntegratedPSSM"
 #define SGX_FUNC_COMPUTE_SHADOW_COLOUR3             "SGX_ComputeShadowFactor_PSSM3"
-#define SGX_FUNC_APPLYSHADOWFACTOR_DIFFUSE          "SGX_ApplyShadowFactor_Diffuse"
 
 namespace Ogre {
 namespace RTShader {
@@ -39,6 +38,7 @@ namespace RTShader {
 /*                                                                      */
 /************************************************************************/
 String IntegratedPSSM3::Type = "SGX_IntegratedPSSM3";
+const String SRS_INTEGRATED_PSSM3 = "SGX_IntegratedPSSM3";
 
 //-----------------------------------------------------------------------
 IntegratedPSSM3::IntegratedPSSM3()
@@ -50,13 +50,6 @@ IntegratedPSSM3::IntegratedPSSM3()
     mIsD3D9 = false;
     mShadowTextureParamsList.resize(1); // normal single texture depth shadowmapping
 }
-
-//-----------------------------------------------------------------------
-const String& IntegratedPSSM3::getType() const
-{
-    return Type;
-}
-
 
 //-----------------------------------------------------------------------
 int IntegratedPSSM3::getExecutionOrder() const
@@ -342,25 +335,13 @@ bool IntegratedPSSM3::addPSInvocation(Program* psProgram, const int groupOrder)
     return true;
 }
 
-
-
-//-----------------------------------------------------------------------
-const String& IntegratedPSSM3Factory::getType() const
-{
-    return IntegratedPSSM3::Type;
-}
-
 //-----------------------------------------------------------------------
 SubRenderState* IntegratedPSSM3Factory::createInstance(ScriptCompiler* compiler, 
                                                       PropertyAbstractNode* prop, Pass* pass, SGScriptTranslator* translator)
 {
     if (prop->name == "integrated_pssm4")
     {       
-        if (prop->values.size() != 4)
-        {
-            compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line);
-        }
-        else
+        if (prop->values.size() == 4)
         {
             IntegratedPSSM3::SplitPointList splitPointList; 
 
@@ -373,8 +354,7 @@ SubRenderState* IntegratedPSSM3Factory::createInstance(ScriptCompiler* compiler,
                 
                 if (false == SGScriptTranslator::getReal(*it, &curSplitValue))
                 {
-                    compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line);
-                    break;
+                    return NULL;
                 }
 
                 splitPointList.push_back(curSplitValue);

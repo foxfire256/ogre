@@ -33,6 +33,13 @@ const String MESH_ARRAY[MESH_ARRAY_SIZE] =
     "knot.mesh"
 };
 
+const char* blendModes[] = {"default",     "normal",       "lighten",     "darken",      "multiply",   "average",
+                            "add",         "subtract",     "difference",  "negation",    "exclusion",  "screen",
+                            "overlay",     "hard_light",   "soft_light",  "color_dodge", "color_burn", "linear_dodge",
+                            "linear_burn", "linear_light", "vivid_light", "pin_light",   "hard_mix",   "reflect",
+                            "glow",        "phoenix",      "saturation",  "color",       "luminosity"};
+#define NUM_BLEND_MODES (sizeof(blendModes) / sizeof(blendModes[0]))
+
 //-----------------------------------------------------------------------
 Sample_ShaderSystem::Sample_ShaderSystem() :
     mLayeredBlendingEntity(NULL)
@@ -65,6 +72,7 @@ Sample_ShaderSystem::Sample_ShaderSystem() :
     mBbsFlare = NULL;
     mAddedLotsOfModels = false;
     mNumberOfModelsAdded = 0;
+    mCurrentBlendMode = NUM_BLEND_MODES - 1;
 }
 //-----------------------------------------------------------------------
 Sample_ShaderSystem::~Sample_ShaderSystem()
@@ -130,7 +138,7 @@ void Sample_ShaderSystem::itemSelected(SelectMenu* menu)
     {
         int curModelIndex = menu->getSelectionIndex();
 
-        if (curModelIndex >= SSLM_PerVertexLighting && curModelIndex <= SSLM_NormalMapLightingObjectSpace)
+        if (curModelIndex >= SSLM_PerPixelLighting&& curModelIndex <= SSLM_NormalMapLightingObjectSpace)
         {
             setCurrentLightingModel((ShaderSystemLightingModel)curModelIndex);
         }
@@ -240,7 +248,7 @@ void Sample_ShaderSystem::setupContent()
 {
     
     // Setup default effects values.
-    mCurLightingModel       = SSLM_PerVertexLighting;
+    mCurLightingModel       = SSLM_PerPixelLighting;
     mPerPixelFogEnable      = false;
     mSpecularEnable         = false;
     mReflectionMapEnable    = false;
@@ -318,18 +326,14 @@ void Sample_ShaderSystem::setupContent()
     childNode->attachObject(mLayeredBlendingEntity);
 
     // Grab the render state of the material.
-    auto renderState = mShaderGenerator->getRenderState(MSN_SHADERGEN, "RTSS/LayeredBlending", RGN_INTERNAL, 0);
+    auto renderState = mShaderGenerator->getRenderState(MSN_SHADERGEN, "RTSS/LayeredBlending", RGN_DEFAULT, 0);
 
     if (renderState)
     {           
         // Search for the texture layer blend sub state.
-        for (auto curSubRenderState : renderState->getSubRenderStates())
+        if (auto srs = renderState->getSubRenderState(SRS_LAYERED_BLENDING))
         {
-            if (curSubRenderState->getType() == LayeredBlending::Type)
-            {
-                mLayerBlendSubRS = static_cast<LayeredBlending*>(curSubRenderState);
-                break;
-            }
+            mLayerBlendSubRS = static_cast<LayeredBlending*>(srs);
         }
     }
 
@@ -461,13 +465,10 @@ void Sample_ShaderSystem::setupUI()
     }
 
     mLightingModelMenu = mTrayMgr->createLongSelectMenu(TL_BOTTOM, "TargetModelLighting", "", 240, 230, 10);    
-    mLightingModelMenu ->addItem("Per Vertex");
-
-#ifdef RTSHADER_SYSTEM_BUILD_EXT_SHADERS
     mLightingModelMenu ->addItem("Per Pixel");
+    mLightingModelMenu ->addItem("Cook Torrance");
     mLightingModelMenu ->addItem("Normal Map - Tangent Space");
     mLightingModelMenu ->addItem("Normal Map - Object Space");
-#endif
 
     mTrayMgr->createButton(TL_BOTTOM, EXPORT_BUTTON_NAME, "Export Material", 240);
     
@@ -477,9 +478,7 @@ void Sample_ShaderSystem::setupUI()
     mModifierValueSlider = mTrayMgr->createThickSlider(TL_RIGHT, MODIFIER_VALUE_SLIDER, "Modifier", 240, 80, 0, 1, 100);
     mModifierValueSlider->setValue(0.0,false);  
     // Update the caption.
-    if(mLayerBlendSubRS)
-        updateLayerBlendingCaption(mLayerBlendSubRS->getBlendMode(1));
-
+    mLayerBlendLabel->setCaption(blendModes[mCurrentBlendMode]);
 #endif
 
     mTrayMgr->showCursor();
@@ -549,30 +548,8 @@ void Sample_ShaderSystem::setPerPixelFogEnable( bool enable )
 
         // Grab the scheme render state.
         RenderState* schemRenderState = mShaderGenerator->getRenderState(MSN_SHADERGEN);
-        const SubRenderStateList& subRenderStateList = schemRenderState->getSubRenderStates();
-        SubRenderStateListConstIterator it = subRenderStateList.begin();
-        SubRenderStateListConstIterator itEnd = subRenderStateList.end();
-        SubRenderState* fogSubRenderState = NULL;
-        
         // Search for the fog sub state.
-        for (; it != itEnd; ++it)
-        {
-            SubRenderState* curSubRenderState = *it;
-
-            if (curSubRenderState->getType() == "FFP_Fog")
-            {
-                fogSubRenderState = curSubRenderState;
-                break;
-            }
-        }
-
-        // Create the fog sub render state if need to.
-        if (fogSubRenderState == NULL)
-        {           
-            fogSubRenderState = mShaderGenerator->createSubRenderState("FFP_Fog");
-            schemRenderState->addTemplateSubRenderState(fogSubRenderState);
-        }
-            
+        auto fogSubRenderState = schemRenderState->getSubRenderState(SRS_FOG);
         
         // Select the desired fog calculation mode.
         fogSubRenderState->setParameter("calc_mode", mPerPixelFogEnable ? "per_pixel" : "per_vertex");
@@ -625,12 +602,12 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
 
             if (mSpecularEnable)
             {
-                curPass->setSpecular(ColourValue::White);
+                curPass->setSpecular(mCurLightingModel != SSLM_CookTorranceLighting ? ColourValue::White : ColourValue(0.3, 0.0));
                 curPass->setShininess(32.0);
             }
             else
             {
-                curPass->setSpecular(ColourValue::Black);
+                curPass->setSpecular(mCurLightingModel != SSLM_CookTorranceLighting ? ColourValue::Black : ColourValue(1.0, 0.0));
                 curPass->setShininess(0.0);
             }
             
@@ -645,15 +622,11 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
 
 
 #ifdef RTSHADER_SYSTEM_BUILD_CORE_SHADERS
-            if (mCurLightingModel == SSLM_PerVertexLighting)
+            if (mCurLightingModel == SSLM_CookTorranceLighting)
             {
-                RTShader::SubRenderState* perPerVertexLightModel = mShaderGenerator->createSubRenderState("FFP_Lighting");
-
-                renderState->addTemplateSubRenderState(perPerVertexLightModel); 
+                auto lightModel = mShaderGenerator->createSubRenderState("CookTorranceLighting");
+                renderState->addTemplateSubRenderState(lightModel);
             }
-#endif
-
-#ifdef RTSHADER_SYSTEM_BUILD_EXT_SHADERS
             else if (mCurLightingModel == SSLM_PerPixelLighting)
             {
                 RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState("SGX_PerPixelLighting");
@@ -769,7 +742,7 @@ void Sample_ShaderSystem::createPointLight()
     light->setCastShadows(false);
     light->setDiffuseColour(0.15, 0.65, 0.15);
     light->setSpecularColour(0.5, 0.5, 0.5);    
-    light->setAttenuation(200.0, 1.0, 0.0005, 0.0);
+    light->setAttenuation(250.0, 0.5, 0, 0.00003);
 
     // create pivot node
     mPointLightNode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
@@ -968,14 +941,9 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
         mSceneMgr->setShadowTechnique(SHADOWTYPE_NONE);
 
 #ifdef RTSHADER_SYSTEM_BUILD_EXT_SHADERS
-        for (auto srs : schemRenderState->getSubRenderStates())
+        if (auto srs = schemRenderState->getSubRenderState(SRS_INTEGRATED_PSSM3))
         {
-            // This is the pssm3 sub render state -> remove it.
-            if (dynamic_cast<RTShader::IntegratedPSSM3*>(srs))
-            {
-                schemRenderState->removeSubRenderState(srs);
-                break;
-            }
+            schemRenderState->removeSubRenderState(srs);
         }
 #endif
 
@@ -1007,11 +975,7 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
         mSpotLightCheckBox->setChecked(false);
 
         mTrayMgr->removeWidgetFromTray(mDirLightCheckBox);
-        mTrayMgr->removeWidgetFromTray(mPointLightCheckBox);
-        mTrayMgr->removeWidgetFromTray(mSpotLightCheckBox);
         mDirLightCheckBox->hide();
-        mPointLightCheckBox->hide();
-        mSpotLightCheckBox->hide();
 
         // Disable fog on the caster pass.
         MaterialPtr passCaterMaterial = MaterialManager::getSingleton().getByName("PSSM/shadow_caster");
@@ -1227,152 +1191,13 @@ void Sample_ShaderSystem::updateTargetObjInfo()
 //-----------------------------------------------------------------------
 void Sample_ShaderSystem::changeTextureLayerBlendMode()
 {
-    LayeredBlending::BlendMode curBlendMode = mLayerBlendSubRS->getBlendMode(1);
-    LayeredBlending::BlendMode nextBlendMode;
-
     // Update the next blend layer mode.
-    if (curBlendMode == LayeredBlending::LB_BlendLuminosity)
-    {
-        nextBlendMode = LayeredBlending::LB_FFPBlend;
-    }
-    else
-    {
-        nextBlendMode = (LayeredBlending::BlendMode)(curBlendMode + 1);
-    }
+    mCurrentBlendMode = (mCurrentBlendMode + 1) % NUM_BLEND_MODES;
 
-    
-    mLayerBlendSubRS->setBlendMode(1, nextBlendMode);
-    mShaderGenerator->invalidateMaterial(MSN_SHADERGEN,
-                                         "RTSS/LayeredBlending", RGN_INTERNAL);
+    mLayerBlendSubRS->setBlendMode(1, blendModes[mCurrentBlendMode]);
+    mShaderGenerator->invalidateMaterial(MSN_SHADERGEN, "RTSS/LayeredBlending", RGN_DEFAULT);
 
-    // Update the caption.
-    updateLayerBlendingCaption(nextBlendMode);
-
-}
-
-//-----------------------------------------------------------------------
-void Sample_ShaderSystem::updateLayerBlendingCaption( LayeredBlending::BlendMode nextBlendMode )
-{
-    switch (nextBlendMode)
-    {
-    case LayeredBlending::LB_FFPBlend:
-        mLayerBlendLabel->setCaption("FFP Blend");
-        break;
-
-    case LayeredBlending::LB_BlendNormal:
-        mLayerBlendLabel->setCaption("Normal");
-        break;
-
-    case LayeredBlending::LB_BlendLighten:  
-        mLayerBlendLabel->setCaption("Lighten");
-        break;
-
-    case LayeredBlending::LB_BlendDarken:
-        mLayerBlendLabel->setCaption("Darken");
-        break;
-
-    case LayeredBlending::LB_BlendMultiply:
-        mLayerBlendLabel->setCaption("Multiply");
-        break;
-
-    case LayeredBlending::LB_BlendAverage:
-        mLayerBlendLabel->setCaption("Average");
-        break;
-
-    case LayeredBlending::LB_BlendAdd:
-        mLayerBlendLabel->setCaption("Add");
-        break;
-
-    case LayeredBlending::LB_BlendSubtract:
-        mLayerBlendLabel->setCaption("Subtract");
-        break;
-
-    case LayeredBlending::LB_BlendDifference:
-        mLayerBlendLabel->setCaption("Difference");
-        break;
-
-    case LayeredBlending::LB_BlendNegation:
-        mLayerBlendLabel->setCaption("Negation");
-        break;
-
-    case LayeredBlending::LB_BlendExclusion:
-        mLayerBlendLabel->setCaption("Exclusion");
-        break;
-
-    case LayeredBlending::LB_BlendScreen:
-        mLayerBlendLabel->setCaption("Screen");
-        break;
-
-    case LayeredBlending::LB_BlendOverlay:
-        mLayerBlendLabel->setCaption("Overlay");
-        break;
-
-    case LayeredBlending::LB_BlendSoftLight:
-        mLayerBlendLabel->setCaption("SoftLight");
-        break;
-
-    case LayeredBlending::LB_BlendHardLight:
-        mLayerBlendLabel->setCaption("HardLight");
-        break;
-
-    case LayeredBlending::LB_BlendColorDodge:
-        mLayerBlendLabel->setCaption("ColorDodge");
-        break;
-
-    case LayeredBlending::LB_BlendColorBurn: 
-        mLayerBlendLabel->setCaption("ColorBurn");
-        break;
-
-    case LayeredBlending::LB_BlendLinearDodge:
-        mLayerBlendLabel->setCaption("LinearDodge");
-        break;
-
-    case LayeredBlending::LB_BlendLinearBurn:
-        mLayerBlendLabel->setCaption("LinearBurn");
-        break;
-
-    case LayeredBlending::LB_BlendLinearLight:
-        mLayerBlendLabel->setCaption("LinearLight");
-        break;
-
-    case LayeredBlending::LB_BlendVividLight:
-        mLayerBlendLabel->setCaption("VividLight");
-        break;
-
-    case LayeredBlending::LB_BlendPinLight:
-        mLayerBlendLabel->setCaption("PinLight");
-        break;
-
-    case LayeredBlending::LB_BlendHardMix:
-        mLayerBlendLabel->setCaption("HardMix");
-        break;
-
-    case LayeredBlending::LB_BlendReflect:
-        mLayerBlendLabel->setCaption("Reflect");
-        break;
-
-    case LayeredBlending::LB_BlendGlow:
-        mLayerBlendLabel->setCaption("Glow");
-        break;
-
-    case LayeredBlending::LB_BlendPhoenix:
-        mLayerBlendLabel->setCaption("Phoenix");
-        break;
-
-    case LayeredBlending::LB_BlendSaturation:
-        mLayerBlendLabel->setCaption("Saturation");
-        break;
-
-    case LayeredBlending::LB_BlendColor:
-        mLayerBlendLabel->setCaption("Color");
-        break;
-
-    case LayeredBlending::LB_BlendLuminosity:
-        mLayerBlendLabel->setCaption("Luminosity");
-        break;
-    default:
-        break;
-    }
+    mLayerBlendLabel->setCaption(blendModes[mCurrentBlendMode]);
 }
 
 //-----------------------------------------------------------------------

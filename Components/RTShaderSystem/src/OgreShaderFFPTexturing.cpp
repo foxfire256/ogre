@@ -34,6 +34,8 @@ namespace RTShader {
 /*                                                                      */
 /************************************************************************/
 String FFPTexturing::Type = "FFP_Texturing";
+const String SRS_TEXTURING = "FFP_Texturing";
+
 #define _INT_VALUE(f) (*(int*)(&(f)))
 
 const String c_ParamTexelEx("texel_");
@@ -46,7 +48,7 @@ FFPTexturing::FFPTexturing() : mIsPointSprite(false), mLateAddBlend(false)
 //-----------------------------------------------------------------------
 const String& FFPTexturing::getType() const
 {
-    return Type;
+    return SRS_TEXTURING;
 }
 
 //-----------------------------------------------------------------------
@@ -217,9 +219,7 @@ bool FFPTexturing::resolveDependencies(ProgramSet* programSet)
     Program* vsProgram = programSet->getCpuProgram(GPT_VERTEX_PROGRAM);
     Program* psProgram = programSet->getCpuProgram(GPT_FRAGMENT_PROGRAM);
 
-    vsProgram->addDependency(FFP_LIB_COMMON);
     vsProgram->addDependency(FFP_LIB_TEXTURING);    
-    psProgram->addDependency(FFP_LIB_COMMON);
     psProgram->addDependency(FFP_LIB_TEXTURING);
     //! [deps_resolve]
     return true;
@@ -448,30 +448,28 @@ void FFPTexturing::addPSBlendInvocations(Function* psMain,
         stage.sub(In(arg1).mask(mask), In(arg2).mask(mask), Out(mPSOutDiffuse).mask(mask));
         break;
     case LBX_BLEND_DIFFUSE_ALPHA:
-        stage.callFunction(FFP_FUNC_LERP, {In(arg2).mask(mask), In(arg1).mask(mask), In(mPSDiffuse).w(),
-                                           Out(mPSOutDiffuse).mask(mask)});
+        stage.callBuiltin(
+            "mix", {In(arg2).mask(mask), In(arg1).mask(mask), In(mPSDiffuse).w(), Out(mPSOutDiffuse).mask(mask)});
         break;
     case LBX_BLEND_TEXTURE_ALPHA:
-        stage.callFunction(FFP_FUNC_LERP, {In(arg2).mask(mask), In(arg1).mask(mask), In(texel).w(),
-                                           Out(mPSOutDiffuse).mask(mask)});
+        stage.callBuiltin("mix",
+                          {In(arg2).mask(mask), In(arg1).mask(mask), In(texel).w(), Out(mPSOutDiffuse).mask(mask)});
         break;
     case LBX_BLEND_CURRENT_ALPHA:
-        stage.callFunction(FFP_FUNC_LERP, {In(arg2).mask(mask), In(arg1).mask(mask),
-                                           In(mPSOutDiffuse).w(),
-                                           Out(mPSOutDiffuse).mask(mask)});
+        stage.callBuiltin(
+            "mix", {In(arg2).mask(mask), In(arg1).mask(mask), In(mPSOutDiffuse).w(), Out(mPSOutDiffuse).mask(mask)});
         break;
     case LBX_BLEND_MANUAL:
-        stage.callFunction(FFP_FUNC_LERP, {In(arg2).mask(mask), In(arg1).mask(mask),
-                                           In(ParameterFactory::createConstParam(blendMode.factor)),
-                                           Out(mPSOutDiffuse).mask(mask)});
+        stage.callBuiltin(
+            "mix", {In(arg2).mask(mask), In(arg1).mask(mask), In(blendMode.factor), Out(mPSOutDiffuse).mask(mask)});
         break;
     case LBX_DOTPRODUCT:
         stage.callFunction(FFP_FUNC_DOTPRODUCT, In(arg2).mask(mask), In(arg1).mask(mask),
                            Out(mPSOutDiffuse).mask(mask));
         break;
     case LBX_BLEND_DIFFUSE_COLOUR:
-        stage.callFunction(FFP_FUNC_LERP, {In(arg2).mask(mask), In(arg1).mask(mask),
-                                           In(mPSDiffuse).mask(mask), Out(mPSOutDiffuse).mask(mask)});
+        stage.callBuiltin("mix", {In(arg2).mask(mask), In(arg1).mask(mask), In(mPSDiffuse).mask(mask),
+                                  Out(mPSOutDiffuse).mask(mask)});
         break;
     }
 }
@@ -536,9 +534,10 @@ bool FFPTexturing::needsTextureMatrix(TextureUnitState* textureUnitState)
         case TextureUnitState::ET_VSCROLL:
         case TextureUnitState::ET_ROTATE:
         case TextureUnitState::ET_TRANSFORM:
+            return true;
         case TextureUnitState::ET_ENVIRONMENT_MAP:
         case TextureUnitState::ET_PROJECTIVE_TEXTURE:
-            return true;        
+            break;
         }
     }
 
@@ -662,22 +661,42 @@ void FFPTexturing::setTextureUnit(unsigned short index, TextureUnitState* textur
      curParams.mVSOutTextureCoordinateType = curParams.mVSInTextureCoordinateType;
      curParams.mTexCoordCalcMethod = getTexCalcMethod(curParams.mTextureUnitState);
 
+    if (curParams.mTexCoordCalcMethod == TEXCALC_PROJECTIVE_TEXTURE)
+        curParams.mVSOutTextureCoordinateType = GCT_FLOAT3;
+
     // let TexCalcMethod override texture type, as it might be wrong for
     // content_type shadow & content_type compositor
-    if (curParams.mTexCoordCalcMethod == TEXCALC_ENVIRONMENT_MAP_REFLECTION)
+    if (curParams.mTexCoordCalcMethod == TEXCALC_ENVIRONMENT_MAP_REFLECTION ||
+        curParams.mTexCoordCalcMethod == TEXCALC_ENVIRONMENT_MAP_NORMAL)
     {
+        if (textureUnitState->getContentType() == TextureUnitState::CONTENT_NAMED &&
+            curParams.mTextureSamplerType != GCT_SAMPLERCUBE)
+        {
+            const auto& matname = textureUnitState->getParent()->getParent()->getParent()->getName();
+            LogManager::getSingleton().logError(matname + " - env_map setting requires a cubic texture");
+        }
         curParams.mVSOutTextureCoordinateType = GCT_FLOAT3;
         curParams.mTextureSamplerType = GCT_SAMPLERCUBE;
     }
 
-     if (curParams.mTexCoordCalcMethod == TEXCALC_PROJECTIVE_TEXTURE)
-         curParams.mVSOutTextureCoordinateType = GCT_FLOAT3;    
+    if (curParams.mTexCoordCalcMethod == TEXCALC_ENVIRONMENT_MAP_PLANAR ||
+        curParams.mTexCoordCalcMethod == TEXCALC_ENVIRONMENT_MAP)
+    {
+        if (textureUnitState->getContentType() == TextureUnitState::CONTENT_NAMED &&
+            curParams.mTextureSamplerType != GCT_SAMPLER2D)
+        {
+            const auto& matname = textureUnitState->getParent()->getParent()->getParent()->getName();
+            LogManager::getSingleton().logError(matname + " - env_map setting requires a 2d texture");
+        }
+        curParams.mVSOutTextureCoordinateType = GCT_FLOAT2;
+        curParams.mTextureSamplerType = GCT_SAMPLER2D;
+    }
 }
 
 //-----------------------------------------------------------------------
 const String& FFPTexturingFactory::getType() const
 {
-    return FFPTexturing::Type;
+    return SRS_TEXTURING;
 }
 
 //-----------------------------------------------------------------------
@@ -688,13 +707,7 @@ SubRenderState* FFPTexturingFactory::createInstance(ScriptCompiler* compiler,
     {
         if(prop->values.size() == 1)
         {
-            String value;
-
-            if(false == SGScriptTranslator::getString(prop->values.front(), &value))
-            {
-                compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line);
-                return NULL;
-            }
+            const String& value = prop->values.front()->getString();
 
             auto inst = createOrRetrieveInstance(translator);
 

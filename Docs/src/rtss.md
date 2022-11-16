@@ -44,7 +44,8 @@ Here are the attributes you can use in a `rtshader_system` block of a `pass {}`:
 
 ## transform_stage
 
-Force a specific transform calculation
+@copydoc Ogre::RTShader::SRS_TRANSFORM
+
 @par
 Format: `transform_stage <type> [attrIndex]`
 @par
@@ -75,7 +76,7 @@ Example: `lighting_stage ffp two_sided`
 
 ## gbuffer
 
-Redirects intermediate lighting results into gbuffers for e.g. deferred shading.
+@copydoc Ogre::RTShader::SRS_GBUFFER
 
 @par
 Format: `lighting_stage gbuffer <target_layout> [target_layout]`
@@ -88,7 +89,7 @@ Example: `lighting_stage gbuffer normal_viewdepth diffuse_specular`
 
 ## normal_map
 
-Use a normal map for lighting computations
+@copydoc Ogre::RTShader::SRS_NORMALMAP
 
 @par
 Format: `lighting_stage normal_map <texture> [normalmap_space] [texcoord_index] [sampler]`
@@ -122,7 +123,7 @@ This is used for parallax corrected rendering.</dd>
 
 ## metal_roughness
 
-Use metal roughness parametrisation for lighting computations.
+@copydoc Ogre::RTShader::SRS_COOK_TORRANCE_LIGHTING
 
 By default, roughness is read from `specular[0]` and metalness from `specular[1]`.
 
@@ -140,7 +141,7 @@ Example: `lighting_stage metal_roughness texture Default_metalRoughness.jpg`
 
 ## fog_stage
 
-Force a specific fog calculation
+@copydoc Ogre::RTShader::SRS_FOG
 
 @par
 Format: `fog_stage ffp <calc_mode>`
@@ -161,7 +162,8 @@ Format: `light_count <pointLights> <directionalLights> <spotLights>`
 
 ## triplanarTexturing
 
-Force [triplanar texturing](https://www.volume-gfx.com/volume-rendering/triplanar-texturing/)
+@copydoc Ogre::RTShader::SRS_TRIPLANAR_TEXTURING
+
 @par
 Format: `triplanarTexturing <textureScale> <plateauSize> <transitionSpeed> <textureFromX> <textureFromY> <textureFromZ>`
 @par
@@ -178,7 +180,8 @@ Valid values are [0; 0.57] not bigger to avoid division by zero
 <a name="integrated_pssm4"></a>
 
 ## integrated_pssm4
-Integrated PSSM shadow receiver with 2 splits. Custom split points.
+@copydoc Ogre::RTShader::SRS_INTEGRATED_PSSM3
+
 @par
 Format: `integrated_pssm4 <znear> <sp0> <sp1> <zfar> [debug] [filter]`
 @param debug visualize the active shadow-splits in the scene
@@ -187,15 +190,16 @@ Format: `integrated_pssm4 <znear> <sp0> <sp1> <zfar> [debug] [filter]`
 <a name="hardware_skinning"></a>
 
 ## hardware_skinning
-Include skinning calculations for Skeletal Animation in the shader to move computations to the GPU
+@copydoc Ogre::RTShader::SRS_HARDWARE_SKINNING
+
 @par
-Format: `hardware_skinning <max_bone_count> <max_weight_count> [type antipodality_check scale_shear]`
+Format: `hardware_skinning <max_bone_count> <max_weight_count> [type] [correct_antipodality scale_shearing]`
 @par
 Example: `hardware_skinning 24 2 dual_quaternion true false`
 
-@param type either `dual_quaternion` or `linear`
-@param antipodality_check Accurate antipodality handling for rotations > 180°
-@param scale_shear add scaling and shearing support to dual quaternion computation
+@param type either `dual_quaternion` or `linear` (default: @c linear)
+@param correct_antipodality Correctly handle rotations > 180° in dual quaternion computation
+@param scale_shearing add scaling and shearing support to dual quaternion computation
 
 @note You can also use Ogre::RTShader::HardwareSkinningFactory::prepareEntityForSkinning to derive this information automatically.
 
@@ -210,7 +214,7 @@ Here are the attributes you can use in a `rtshader_system` block of a `texture_u
 
 ## layered_blend
 
-Apply photoshop-like blend effects to texture layers
+@copydoc Ogre::RTShader::SRS_LAYERED_BLENDING
 @par
 Format: `layered_blend <effect>`
 @par
@@ -253,7 +257,7 @@ ShaderGenerator* shaderGen = ShaderGenerator::getSingletonPtr();
 
 shaderGen->createShaderBasedTechnique(mat->getTechnique(0), MSN_SHADERGEN);
 RenderState* rs = shaderGen->getRenderState(MSN_SHADERGEN, *mat, 0);
-SubRenderState* srs = shaderGen->createSubRenderState("NormalMap");
+SubRenderState* srs = shaderGen->createSubRenderState(SRS_NORMALMAP);
 rs->addTemplateSubRenderState(srs);
 
 srs->setParameter("texture", "Default_normal.jpg");
@@ -365,14 +369,12 @@ When a shader is generated for a given material the system combines the SubRende
 @par SubRenderState classes
 Sub-render states (SRS) are components designed to generate the code of the RTSS shaders. Each SRS usually has a specific role to fill within the shader's construction. These components can be combined in different combinations to create shaders with different capabilities.
 @par
-There are 5 basic SRSs. These are used to recreate the functionality provided by the fixed pipeline and are added by default to every scheme RenderState:
-* Ogre::RTShader::FFPTransform - responsible for adding code to the vertex shader which computes the position of the vertex in projection space
-* Ogre::RTShader::FFPColour - responsible for adding code to the shaders that calculate the base diffuse and specular color of the object regardless of lights or textures. The color is calculated based on the ambient, diffuse, specular and emissive properties of the object and scene, color tracking and the specified hardware buffer color.
-* Ogre::RTShader::FFPLighting - responsible for adding code to the shaders that calculate the luminescence added to the object by light. Then add that value to the color calculated by the color SRS stage.
-* Ogre::RTShader::FFPTexturing - responsible for adding code that modulates the color of the pixels based on textures assigned to the material.
-* Ogre::RTShader::FFPFog - responsible for adding code that modulates the color of a pixel based on the scene or object fog parameters.
-@par
-There are many more sub render states that already exist in the Ogre system and new ones can be added. Some of the existing SRSs include capabilities such as: per-pixel lighting, texture atlas, advanced texture blend, bump mapping, efficient multiple lights (sample), textured fog (sample), etc...
+By default, %Ogre adds the following 5 SRSs to every scheme RenderState to recreate the functionality provided by the fixed pipeline
+1. @ref Ogre::RTShader::SRS_TRANSFORM - @copydoc Ogre::RTShader::SRS_TRANSFORM
+2. @ref Ogre::RTShader::SRS_VERTEX_COLOUR - Calculate the base diffuse and specular color of the object regardless of lights or textures. The color is calculated based on the ambient, diffuse, specular and emissive properties of the object and scene and the specified color tracking.
+3. @ref Ogre::RTShader::SRS_PER_PIXEL_LIGHTING - @copydoc Ogre::RTShader::SRS_PER_PIXEL_LIGHTING
+4. @ref Ogre::RTShader::SRS_TEXTURING - @copydoc Ogre::RTShader::SRS_TEXTURING
+5. @ref Ogre::RTShader::SRS_FOG - @copydoc Ogre::RTShader::SRS_FOG
 
 @par SubRenderStateFactory
 As the name suggests, sub render state factories are factories that produce sub render states. Each factory generates a specific SRS.

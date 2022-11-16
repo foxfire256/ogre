@@ -296,9 +296,7 @@ protected:
 			);
 		mCameraNode->setPosition(mTerrainPos+worldCenter);
 		mCameraNode->lookAt(mTerrainPos, Node::TS_PARENT);
-		mCamera->setNearClipDistance(0.1);
-		mCamera->setFarClipDistance(50000);
-
+		mCamera->setNearClipDistance(5);
 		mCamera->setFarClipDistance(0);   // enable infinite far clip distance
 	}
 
@@ -351,8 +349,10 @@ protected:
 
 		setDragLook(true);
 
+#if OGRE_PLATFORM != OGRE_PLATFORM_ANDROID
 		MaterialManager::getSingleton().setDefaultTextureFiltering(TFO_ANISOTROPIC);
-		MaterialManager::getSingleton().setDefaultAnisotropy(7);
+		MaterialManager::getSingleton().setDefaultAnisotropy(8);
+#endif
 
 		mSceneMgr->setFog(FOG_LINEAR, ColourValue(0.7, 0.7, 0.8), 0, 4000, 10000);
 

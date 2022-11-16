@@ -307,7 +307,7 @@ namespace Ogre {
             unsigned int n = 0;
             for (const auto *e : mSubEntityList)
             {
-                newEnt->getSubEntity(n)->setMaterialName(e->getMaterialName());
+                newEnt->getSubEntities()[n++]->setMaterialName(e->getMaterialName());
             }
             if (mAnimationState)
             {
@@ -825,7 +825,7 @@ namespace Ogre {
                 // Software blend?
                 if (softwareAnimation)
                 {
-                    const Affine3* blendMatrices[256];
+                    const Affine3* blendMatrices[OGRE_MAX_NUM_BONES];
 
                     // Ok, we need to do a software blend
                     // Firstly, check out working vertex buffers
@@ -899,7 +899,7 @@ namespace Ogre {
 
             // Also calculate bone world matrices, since are used as replacement world matrices,
             // but only if it's used (when using hardware animation and skeleton animated).
-            if (hwAnimation && _isSkeletonAnimated())
+            if (hwAnimation && _isSkeletonAnimated() && !MeshManager::getBonesUseObjectSpace())
             {
                 // Allocate bone world matrices on demand, for better memory footprint
                 // when using software animation.

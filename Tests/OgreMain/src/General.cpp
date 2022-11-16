@@ -64,10 +64,27 @@ TEST_F(CameraTests,customProjectionMatrix)
     std::vector<Vector3> corners(cam.getWorldSpaceCorners(), cam.getWorldSpaceCorners() + 8);
     RealRect extents = cam.getFrustumExtents();
     cam.setCustomProjectionMatrix(true, cam.getProjectionMatrix());
-    for(int j = 0; j < 8; j++)
-        EXPECT_EQ(corners[j], cam.getWorldSpaceCorners()[j]);
+    for(int j = 0; j < 8; j++) {
+        for(int k = 0; k < 3; k++) {
+            if(typeid(corners[j]) == typeid(float))
+                EXPECT_FLOAT_EQ(corners[j][k], cam.getWorldSpaceCorners()[j][k]);
+            else
+                EXPECT_DOUBLE_EQ(corners[j][k], cam.getWorldSpaceCorners()[j][k]);
+        }
+    }
 
-    EXPECT_EQ(extents, cam.getFrustumExtents());
+    if(typeid(Ogre::Real) == typeid(float)) {
+        EXPECT_FLOAT_EQ(extents.bottom, cam.getFrustumExtents().bottom);
+        EXPECT_FLOAT_EQ(extents.top, cam.getFrustumExtents().top);
+        EXPECT_FLOAT_EQ(extents.left, cam.getFrustumExtents().left);
+        EXPECT_FLOAT_EQ(extents.right, cam.getFrustumExtents().right);
+    } else {
+        EXPECT_DOUBLE_EQ(extents.bottom, cam.getFrustumExtents().bottom);
+        EXPECT_DOUBLE_EQ(extents.top, cam.getFrustumExtents().top);
+        EXPECT_DOUBLE_EQ(extents.left, cam.getFrustumExtents().left);
+        EXPECT_DOUBLE_EQ(extents.right, cam.getFrustumExtents().right);
+    }
+
 }
 
 TEST(Root,shutdown)
@@ -285,6 +302,47 @@ TEST(Image, Combine)
     // combined.save(testPath+"/rockwall_flare.png");
     STBIImageCodec::shutdown();
     ASSERT_TRUE(!memcmp(combined.getData(), ref.getData(), ref.getSize()));
+}
+
+TEST(Image, Compressed)
+{
+    Root root;
+    ConfigFile cf;
+    cf.load(FileSystemLayer(OGRE_VERSION_NAME).getConfigFilePath("resources.cfg"));
+    auto testPath = cf.getSettings("Tests").begin()->second;
+
+    Image img;
+#if OGRE_NO_PVRTC_CODEC == 0
+    // 2bpp
+    img.load(Root::openFileStream(testPath+"/ogreborderUp_pvr2.pvr"), "pvr");
+    EXPECT_EQ(img.getFormat(), PF_PVRTC_RGB2);
+    // 2bpp alpha
+    img.load(Root::openFileStream(testPath+"/ogreborderUp_pvr2a.pvr"), "pvr");
+    EXPECT_EQ(img.getFormat(), PF_PVRTC_RGBA2);
+    // 4bpp
+    img.load(Root::openFileStream(testPath+"/ogreborderUp_pvr4.pvr"), "pvr");
+    EXPECT_EQ(img.getFormat(), PF_PVRTC_RGB4);
+    // 4 bpp alpha
+    img.load(Root::openFileStream(testPath+"/ogreborderUp_pvr4a.pvr"), "pvr");
+    EXPECT_EQ(img.getFormat(), PF_PVRTC_RGBA4);
+#endif
+
+#if OGRE_NO_ETC_CODEC == 0
+    img.load(Root::openFileStream(testPath+"/Texture.pkm"), "pkm");
+    EXPECT_EQ(img.getFormat(), PF_ETC2_RGB8);
+    img.load(Root::openFileStream(testPath+"/etc2-rgba8.ktx"), "ktx");
+    EXPECT_EQ(img.getFormat(), PF_ETC2_RGBA8);
+#endif
+
+#if OGRE_NO_ASTC_CODEC == 0
+    img.load(Root::openFileStream(testPath+"/Earth-Color10x6.astc"), "astc");
+    EXPECT_EQ(img.getFormat(), PF_ASTC_RGBA_10X6_LDR);
+#endif
+
+#if OGRE_NO_DDS_CODEC == 0
+    img.load(Root::openFileStream(testPath+"/ogreborderUp_dxt3.dds"), "dds");
+    EXPECT_EQ(img.getFormat(), PF_BYTE_RGBA); // no RenderSystem available, will decompress
+#endif
 }
 
 struct UsePreviousResourceLoadingListener : public ResourceLoadingListener

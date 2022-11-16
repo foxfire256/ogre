@@ -13,13 +13,13 @@ namespace RTShader
 /************************************************************************/
 /*                                                                      */
 /************************************************************************/
-String CookTorranceLighting::Type = "CookTorranceLighting";
+const String SRS_COOK_TORRANCE_LIGHTING = "CookTorranceLighting";
 
 //-----------------------------------------------------------------------
 CookTorranceLighting::CookTorranceLighting() : mLightCount(0), mMRMapSamplerIndex(0) {}
 
 //-----------------------------------------------------------------------
-const String& CookTorranceLighting::getType() const { return Type; }
+const String& CookTorranceLighting::getType() const { return SRS_COOK_TORRANCE_LIGHTING; }
 //-----------------------------------------------------------------------
 bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
 {
@@ -36,8 +36,13 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
     psProgram->addPreprocessorDefines(StringUtil::format("LIGHT_COUNT=%d", mLightCount));
 
     // Resolve texture coordinates.
-    auto vsInTexcoord = vsMain->resolveInputParameter(Parameter::SPC_TEXTURE_COORDINATE0, GCT_FLOAT2);
-    auto vsOutTexcoord = vsMain->resolveOutputParameter(Parameter::SPC_TEXTURE_COORDINATE0, GCT_FLOAT2);
+    auto vsOutTexcoord = vsMain->getOutputParameter(Parameter::SPC_TEXTURE_COORDINATE0, GCT_FLOAT2); // allow override by others
+    ParameterPtr vsInTexcoord;
+    if(!vsOutTexcoord)
+    {
+        vsInTexcoord = vsMain->resolveInputParameter(Parameter::SPC_TEXTURE_COORDINATE0, GCT_FLOAT2);
+        vsOutTexcoord = vsMain->resolveOutputParameter(Parameter::SPC_TEXTURE_COORDINATE0, GCT_FLOAT2);
+    }
     auto psInTexcoord = psMain->resolveInputParameter(vsOutTexcoord);
 
     // resolve view position
@@ -73,7 +78,8 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
     auto fstage = psMain->getStage(FFP_PS_COLOUR_END + 50);
 
     // Forward texture coordinates
-    vstage.assign(vsInTexcoord, vsOutTexcoord);
+    if(vsInTexcoord)
+        vstage.assign(vsInTexcoord, vsOutTexcoord);
     vstage.callFunction(FFP_FUNC_TRANSFORM, worldViewMatrix, vsInPosition, vsOutViewPos);
 
     // transform normal in VS
@@ -103,34 +109,33 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
 
     auto sceneCol = psProgram->resolveParameter(GpuProgramParameters::ACT_DERIVED_SCENE_COLOUR);
     auto litResult = psMain->resolveLocalParameter(GCT_FLOAT4, "litResult");
-    auto ambient = psMain->resolveLocalParameter(GCT_FLOAT4, "ambient");
     auto diffuse = psProgram->resolveParameter(GpuProgramParameters::ACT_SURFACE_DIFFUSE_COLOUR);
 
     fstage.mul(diffuse, outDiffuse, outDiffuse);
-
     fstage.assign(Vector4(0), litResult);
-    fstage.assign(sceneCol, ambient);
-
-    fstage.mul(ambient, outDiffuse, ambient);
 
     if(mLightCount > 0)
     {
         auto lightPos = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_POSITION_VIEW_SPACE_ARRAY, mLightCount);
-        auto lightDiffuse = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_DIFFUSE_COLOUR_ARRAY, mLightCount);
+        auto lightDiffuse = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_DIFFUSE_COLOUR_POWER_SCALED_ARRAY, mLightCount);
         auto pointParams = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_ATTENUATION_ARRAY, mLightCount);
         auto spotParams = psProgram->resolveParameter(GpuProgramParameters::ACT_SPOTLIGHT_PARAMS_ARRAY, mLightCount);
         auto lightDirView = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_DIRECTION_VIEW_SPACE_ARRAY, mLightCount);
 
-        fstage.callFunction("PBR_Lights", {In(viewNormal), In(viewPos), In(lightPos), In(lightDiffuse),
-                                            In(pointParams), In(lightDirView), In(spotParams), In(outDiffuse).xyz(),
-                                            mrparams, InOut(litResult).xyz()});
+        std::vector<Operand> params = {In(viewNormal),       In(viewPos),     In(sceneCol),          In(lightPos),
+                                       In(lightDiffuse),     In(pointParams), In(lightDirView),      In(spotParams),
+                                       In(outDiffuse).xyz(), mrparams,        InOut(litResult).xyz()};
+
+        if (auto shadowFactor = psMain->getLocalParameter("lShadowFactor"))
+        {
+            params.insert(params.begin(), In(shadowFactor));
+            psProgram->addPreprocessorDefines("HAVE_SHADOW_FACTOR");
+        }
+
+        fstage.callFunction("PBR_Lights", params);
     }
 
-    fstage.add(ambient, litResult, outDiffuse);
-
-    if (auto shadowFactor = psMain->getLocalParameter("lShadowFactor"))
-        fstage.callFunction("SGX_ApplyShadowFactor_Diffuse",
-                            {In(ambient), In(outDiffuse), In(shadowFactor), Out(outDiffuse)});
+    fstage.assign(In(litResult).xyz(), Out(outDiffuse).xyz());
 
     return true;
 }
@@ -163,7 +168,7 @@ bool CookTorranceLighting::preAddToRenderState(const RenderState* renderState, P
 
 bool CookTorranceLighting::setParameter(const String& name, const String& value)
 {
-    if (name == "texture")
+    if (name == "texture" && !value.empty())
     {
         mMetalRoughnessMapName = value;
         return true;
@@ -173,7 +178,7 @@ bool CookTorranceLighting::setParameter(const String& name, const String& value)
 }
 
 //-----------------------------------------------------------------------
-const String& CookTorranceLightingFactory::getType() const { return CookTorranceLighting::Type; }
+const String& CookTorranceLightingFactory::getType() const { return SRS_COOK_TORRANCE_LIGHTING; }
 
 //-----------------------------------------------------------------------
 SubRenderState* CookTorranceLightingFactory::createInstance(ScriptCompiler* compiler, PropertyAbstractNode* prop,
@@ -185,33 +190,23 @@ SubRenderState* CookTorranceLightingFactory::createInstance(ScriptCompiler* comp
         AbstractNodeList::const_iterator it = prop->values.begin();
 
         // Read light model type.
-        if (!SGScriptTranslator::getString(*it++, &strValue))
-        {
-            compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line);
-            return NULL;
-        }
-
-        if(strValue != "metal_roughness")
+        if ((*it++)->getString()!= "metal_roughness")
             return NULL;
 
         auto subRenderState = createOrRetrieveInstance(translator);
 
-        if(prop->values.size() == 1)
+        if(prop->values.size() < 3)
             return subRenderState;
 
-        if (!SGScriptTranslator::getString(*it++, &strValue) || strValue != "texture")
+        if ((*it++)->getString() != "texture")
         {
             compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line);
             return subRenderState;
         }
 
-        if (false == SGScriptTranslator::getString(*it, &strValue))
-        {
-            compiler->addError(ScriptCompiler::CE_STRINGEXPECTED, prop->file, prop->line);
-            return subRenderState;
-        }
+        if(!subRenderState->setParameter("texture", (*it++)->getString()))
+            compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line);
 
-        subRenderState->setParameter("texture", strValue);
         return subRenderState;
     }
 

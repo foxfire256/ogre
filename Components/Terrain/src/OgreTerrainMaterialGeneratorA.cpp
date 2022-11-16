@@ -59,16 +59,6 @@ namespace Ogre
         mLayerDecl.samplers.push_back(TerrainLayerSampler("albedo_specular", PF_BYTE_RGBA));
         mLayerDecl.samplers.push_back(TerrainLayerSampler("normal_height", PF_BYTE_RGBA));
         
-        mLayerDecl.elements.push_back(
-            TerrainLayerSamplerElement(0, TLSS_ALBEDO, 0, 3));
-        mLayerDecl.elements.push_back(
-            TerrainLayerSamplerElement(0, TLSS_SPECULAR, 3, 1));
-        mLayerDecl.elements.push_back(
-            TerrainLayerSamplerElement(1, TLSS_NORMAL, 0, 3));
-        mLayerDecl.elements.push_back(
-            TerrainLayerSamplerElement(1, TLSS_HEIGHT, 3, 1));
-
-
         mProfiles.push_back(OGRE_NEW SM2Profile(this, "SM2", "Profile for rendering on Shader Model 2 capable cards"));
 
         // TODO - check hardware capabilities & use fallbacks if required (more profiles needed)
@@ -261,7 +251,6 @@ namespace Ogre
         }
 
         addTechnique(mat, terrain, HIGH_LOD);
-        updateParams(mat, terrain);
 
         // LOD
         if(mCompositeMapEnabled)
@@ -309,6 +298,8 @@ namespace Ogre
 
             mat->setLodLevels({TerrainGlobalOptions::getSingleton().getCompositeMapDistance()});
         }
+
+        updateParams(mat, terrain);
 
         return mat;
     }
@@ -437,6 +428,17 @@ namespace Ogre
         Pass* p = mat->getTechnique(0)->getPass(0);
         mShaderGen->updateVpParams(this, terrain, HIGH_LOD, p->getVertexProgramParameters());
         mShaderGen->updateFpParams(this, terrain, HIGH_LOD, p->getFragmentProgramParameters());
+
+        if(!isCompositeMapEnabled())
+            return;
+
+        using namespace RTShader;
+        auto lod1RenderState = any_cast<TargetRenderStatePtr>(
+            mat->getTechnique(1)->getPass(0)->getUserObjectBindings().getUserAny(TargetRenderState::UserKey));
+        if (auto transform = lod1RenderState->getSubRenderState("TerrainTransform"))
+        {
+            static_cast<TerrainTransform*>(transform)->updateParams();
+        }
     }
     //---------------------------------------------------------------------
     void TerrainMaterialGeneratorA::SM2Profile::updateParamsForCompositeMap(const MaterialPtr& mat, const Terrain* terrain)
