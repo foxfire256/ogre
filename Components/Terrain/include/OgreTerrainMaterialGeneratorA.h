@@ -37,6 +37,11 @@ namespace Ogre
     class PSSMShadowCameraSetup;
     class ShaderHelper;
 
+    namespace RTShader
+    {
+    class RenderState;
+    }
+
     /** \addtogroup Optional
     *  @{
     */
@@ -57,9 +62,12 @@ namespace Ogre
     */
     class _OgreTerrainExport TerrainMaterialGeneratorA : public TerrainMaterialGenerator
     {
+        std::unique_ptr<RTShader::RenderState> mMainRenderState;
     public:
         TerrainMaterialGeneratorA();
         virtual ~TerrainMaterialGeneratorA();
+
+        RTShader::RenderState* getMainRenderState() const { return mMainRenderState.get(); }
 
         /** Shader model 2 profile target. 
         */
@@ -135,12 +143,10 @@ namespace Ogre
             settings to use (default 0). 
             */
             PSSMShadowCameraSetup* getReceiveDynamicShadowsPSSM() const { return mPSSM; }
-            /** Whether to use depth shadows (default false). 
-            */
-            void setReceiveDynamicShadowsDepth(bool enabled);
-            /** Whether to use depth shadows (default false). 
-            */
-            bool getReceiveDynamicShadowsDepth() const { return mDepthShadows; }
+            /// @deprecated determined by PixelFormat
+            OGRE_DEPRECATED void setReceiveDynamicShadowsDepth(bool enabled) {}
+            /// @deprecated determined by PixelFormat
+            OGRE_DEPRECATED bool getReceiveDynamicShadowsDepth() const { return true; }
             /** Whether to use shadows on low LOD material rendering (when using composite map) (default false). 
             */
             void setReceiveDynamicShadowsLowLod(bool enabled);
@@ -150,11 +156,6 @@ namespace Ogre
 
             bool isShadowingEnabled(TechniqueType tt, const Terrain* terrain) const;
         private:
-            typedef StringStream stringstream;
-
-            void addTechnique(const MaterialPtr& mat, const Terrain* terrain, TechniqueType tt);
-
-            ShaderHelper* mShaderGen;
             bool mLayerNormalMappingEnabled;
             bool mLayerParallaxMappingEnabled;
             bool mLayerSpecularMappingEnabled;
@@ -163,7 +164,6 @@ namespace Ogre
             bool mCompositeMapEnabled;
             bool mReceiveDynamicShadows;
             PSSMShadowCameraSetup* mPSSM;
-            bool mDepthShadows;
             bool mLowLodShadows;
         };
     };

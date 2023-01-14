@@ -92,14 +92,18 @@ public:
 
     /// shorthand for "dst = BUILTIN(args);"
     void callBuiltin(const char* name, const std::vector<Operand>& params) const;
-
+    /// @overload
     void callBuiltin(const char* name, const In& arg, const Out& ret) const { callBuiltin(name, {arg, ret}); }
-
+    /// @overload
+    void callBuiltin(const char* name, const In& arg0, const In& arg1, const Out& ret) const
+    {
+        callBuiltin(name, {arg0, arg1, ret});
+    }
+    /// @overload
     void callBuiltin(const char* name, const In& arg0, const In& arg1, const In& arg2, const Out& ret) const
     {
         callBuiltin(name, {arg0, arg1, arg2, ret});
     }
-
 private:
     uint32 mStage;
     Function* mParent;
@@ -185,6 +189,9 @@ public:
     @return parameter instance in case of that resolve operation succeeded.
     */
     ParameterPtr resolveLocalParameter(Parameter::Content content, GpuConstantType type = GCT_UNKNOWN);
+
+
+    ParameterPtr resolveLocalStructParameter(const String& type, const String& name);
 
     /**
      * get local parameter by content

@@ -43,7 +43,6 @@ THE SOFTWARE.
 #include "OgreBillboardSet.h"
 #include "OgreBillboardChain.h"
 #include "OgreRibbonTrail.h"
-#include "OgreLight.h"
 #include "OgreConvexBody.h"
 #include "OgreTimer.h"
 #include "OgreFrameListener.h"
@@ -304,9 +303,8 @@ namespace Ogre {
             of << "Render System=" << std::endl;
         }
 
-        for (RenderSystemList::const_iterator pRend = getAvailableRenderers().begin(); pRend != getAvailableRenderers().end(); ++pRend)
+        for (auto *rs : getAvailableRenderers())
         {
-            RenderSystem* rs = *pRend;
             of << std::endl;
             of << "[" << rs->getName() << "]" << std::endl;
             const ConfigOptionMap& opts = rs->getConfigOptions();
@@ -387,10 +385,9 @@ namespace Ogre {
         }
 
         bool optionError = false;
-        ConfigFile::SettingsBySection_::const_iterator seci;
-        for(seci = cfg.getSettingsBySection().begin(); seci != cfg.getSettingsBySection().end(); ++seci) {
-            const ConfigFile::SettingsMultiMap& settings = seci->second;
-            const String& renderSystem = seci->first;
+        for(auto& seci : cfg.getSettingsBySection()) {
+            const ConfigFile::SettingsMultiMap& settings = seci.second;
+            const String& renderSystem = seci.first;
 
             RenderSystem* rs = getRenderSystemByName(renderSystem);
             if (!rs)
@@ -473,10 +470,8 @@ namespace Ogre {
             return NULL;
         }
 
-        RenderSystemList::const_iterator pRend;
-        for (pRend = getAvailableRenderers().begin(); pRend != getAvailableRenderers().end(); ++pRend)
+        for (auto *rs : getAvailableRenderers())
         {
-            RenderSystem* rs = *pRend;
             if (rs->getName() == name)
                 return rs;
         }
@@ -538,12 +533,11 @@ namespace Ogre {
 
             // Capabilities Database setting must be in the same format as
             // resources.cfg in Ogre examples.
-            const ConfigFile::SettingsMultiMap& dbs = cfg.getSettings("Capabilities Database");
-            for(ConfigFile::SettingsMultiMap::const_iterator it = dbs.begin(); it != dbs.end(); ++it)
+            for(auto& it : cfg.getSettings("Capabilities Database"))
             {
-                const String& archType = it->first;
+                const String& archType = it.first;
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE || OGRE_PLATFORM == OGRE_PLATFORM_APPLE_IOS
-                String filename = it->second;
+                String filename = it.second;
 
                 // Only adjust relative directories
                 if (!StringUtil::startsWith(filename, "/", false))
@@ -552,9 +546,8 @@ namespace Ogre {
                     filename = String(macBundlePath() + "/Contents/Resources/" + filename);
                 }
 #else
-                String filename = it->second;
+                String filename = it.second;
 #endif
-
                 rscManager.parseCapabilitiesFromArchive(filename, archType, true);
             }
 
@@ -686,12 +679,12 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void Root::_syncAddedRemovedFrameListeners()
     {
-        for (std::set<FrameListener*>::iterator i = mRemovedFrameListeners.begin(); i != mRemovedFrameListeners.end(); ++i)
-            mFrameListeners.erase(*i);
+        for (auto& l : mRemovedFrameListeners)
+            mFrameListeners.erase(l);
         mRemovedFrameListeners.clear();
 
-        for (std::set<FrameListener*>::iterator i = mAddedFrameListeners.begin(); i != mAddedFrameListeners.end(); ++i)
-            mFrameListeners.insert(*i);
+        for (auto& l : mAddedFrameListeners)
+            mFrameListeners.insert(l);
         mAddedFrameListeners.clear();
     }
     //-----------------------------------------------------------------------
@@ -701,12 +694,12 @@ namespace Ogre {
         _syncAddedRemovedFrameListeners();
 
         // Tell all listeners
-        for (std::set<FrameListener*>::iterator i = mFrameListeners.begin(); i != mFrameListeners.end(); ++i)
+        for (auto *l : mFrameListeners)
         {
-            if(mRemovedFrameListeners.find(*i) != mRemovedFrameListeners.end())
+            if(mRemovedFrameListeners.find(l) != mRemovedFrameListeners.end())
                 continue;
 
-            if (!(*i)->frameStarted(evt))
+            if (!l->frameStarted(evt))
                 return false;
         }
 
@@ -720,12 +713,12 @@ namespace Ogre {
         _syncAddedRemovedFrameListeners();
 
         // Tell all listeners
-        for (std::set<FrameListener*>::iterator i = mFrameListeners.begin(); i != mFrameListeners.end(); ++i)
+        for (auto *l : mFrameListeners)
         {
-            if(mRemovedFrameListeners.find(*i) != mRemovedFrameListeners.end())
+            if(mRemovedFrameListeners.find(l) != mRemovedFrameListeners.end())
                 continue;
 
-            if (!(*i)->frameRenderingQueued(evt))
+            if (!l->frameRenderingQueued(evt))
                 return false;
         }
 
@@ -738,12 +731,12 @@ namespace Ogre {
 
         // Tell all listeners
         bool ret = true;
-        for (std::set<FrameListener*>::iterator i = mFrameListeners.begin(); i != mFrameListeners.end(); ++i)
+        for (auto *l : mFrameListeners)
         {
-            if(mRemovedFrameListeners.find(*i) != mRemovedFrameListeners.end())
+            if(mRemovedFrameListeners.find(l) != mRemovedFrameListeners.end())
                 continue;
 
-            if (!(*i)->frameEnded(evt))
+            if (!l->frameEnded(evt))
             {
                 ret = false;
                 break;
@@ -963,11 +956,10 @@ namespace Ogre {
 #endif
         }
 
-        for( StringVector::iterator it = pluginList.begin(); it != pluginList.end(); ++it )
+        for(auto& p : pluginList)
         {
-            loadPlugin(pluginDir + (*it));
+            loadPlugin(pluginDir + p);
         }
-
     }
     //-----------------------------------------------------------------------
     void Root::shutdownPlugins(void)
@@ -981,9 +973,9 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void Root::initialisePlugins(void)
     {
-        for (PluginInstanceList::iterator i = mPlugins.begin(); i != mPlugins.end(); ++i)
+        for (auto *p : mPlugins)
         {
-            (*i)->initialise();
+            p->initialise();
         }
     }
     //-----------------------------------------------------------------------
@@ -1236,9 +1228,8 @@ namespace Ogre {
         // This belongs here, as all render targets must be updated before events are
         // triggered, otherwise targets could be mismatched.  This could produce artifacts,
         // for instance, with shadows.
-        SceneManagerEnumerator::Instances::const_iterator it, end = getSceneManagers().end();
-        for (it = getSceneManagers().begin(); it != end; ++it)
-            it->second->_handleLodEvents();
+        for (const auto& m : getSceneManagers())
+            m.second->_handleLodEvents();
 
         return ret;
     }
@@ -1255,9 +1246,8 @@ namespace Ogre {
         // This belongs here, as all render targets must be updated before events are
         // triggered, otherwise targets could be mismatched.  This could produce artifacts,
         // for instance, with shadows.
-        SceneManagerEnumerator::Instances::const_iterator it, end = getSceneManagers().end();
-        for (it = getSceneManagers().begin(); it != end; ++it)
-            it->second->_handleLodEvents();
+        for (const auto& m : getSceneManagers())
+            m.second->_handleLodEvents();
 
         return ret;
     }
@@ -1376,7 +1366,4 @@ namespace Ogre {
 
         }
     }
-
-
-
 }

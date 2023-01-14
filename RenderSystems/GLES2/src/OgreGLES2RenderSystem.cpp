@@ -39,7 +39,6 @@ THE SOFTWARE.
 #include "OgreGLVertexArrayObject.h"
 #include "OgreRoot.h"
 #include "OgreViewport.h"
-#include "OgreFrustum.h"
 #include "OgreLogManager.h"
 #if !OGRE_NO_GLES2_CG_SUPPORT
 #include "OgreGLSLESCgProgramFactory.h"
@@ -727,9 +726,7 @@ namespace Ogre {
 
     void GLES2RenderSystem::_setTexture(size_t stage, bool enabled, const TexturePtr &texPtr)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
-
+        mStateCacheManager->activateGLTextureUnit(stage);
         if (enabled)
         {
             GLES2TexturePtr tex = static_pointer_cast<GLES2Texture>(texPtr);
@@ -752,8 +749,7 @@ namespace Ogre {
 
     void GLES2RenderSystem::_setSampler(size_t unit, Sampler& sampler)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(unit))
-            return;
+        mStateCacheManager->activateGLTextureUnit(unit);
 
         GLenum target = mTextureTypes[unit];
 
@@ -763,7 +759,10 @@ namespace Ogre {
         if(getCapabilities()->hasCapability(RSC_TEXTURE_3D))
             mStateCacheManager->setTexParameteri(target, GL_TEXTURE_WRAP_R, getTextureAddressingMode(uvw.w));
 
-        if ((uvw.u == TAM_BORDER || uvw.v == TAM_BORDER || uvw.w == TAM_BORDER) && checkExtension("GL_EXT_texture_border_clamp"))
+        bool hasBorderClamp = hasMinGLVersion(3, 2) || checkExtension("GL_EXT_texture_border_clamp") ||
+                              checkExtension("GL_OES_texture_border_clamp");
+
+        if ((uvw.u == TAM_BORDER || uvw.v == TAM_BORDER || uvw.w == TAM_BORDER) && hasBorderClamp)
             OGRE_CHECK_GL_ERROR(glTexParameterfv( target, GL_TEXTURE_BORDER_COLOR_EXT, sampler.getBorderColour().ptr()));
 
         // only via shader..
@@ -807,8 +806,9 @@ namespace Ogre {
         switch (tam)
         {
             case TextureUnitState::TAM_CLAMP:
-            case TextureUnitState::TAM_BORDER:
                 return GL_CLAMP_TO_EDGE;
+            case TextureUnitState::TAM_BORDER:
+                return GL_CLAMP_TO_BORDER_EXT;
             case TextureUnitState::TAM_MIRROR:
                 return GL_MIRRORED_REPEAT;
             case TextureUnitState::TAM_WRAP:
@@ -819,9 +819,7 @@ namespace Ogre {
 
     void GLES2RenderSystem::_setTextureAddressingMode(size_t stage, const Sampler::UVWAddressingMode& uvw)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
-
+        mStateCacheManager->activateGLTextureUnit(stage);
         mStateCacheManager->setTexParameteri(mTextureTypes[stage], GL_TEXTURE_WRAP_S, getTextureAddressingMode(uvw.u));
         mStateCacheManager->setTexParameteri(mTextureTypes[stage], GL_TEXTURE_WRAP_T, getTextureAddressingMode(uvw.v));
 
@@ -1148,9 +1146,7 @@ namespace Ogre {
                 
     void GLES2RenderSystem::_setTextureUnitFiltering(size_t unit, FilterType ftype, FilterOptions fo)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(unit))
-            return;
-
+        mStateCacheManager->activateGLTextureUnit(unit);
         switch (ftype)
         {
             case FT_MIN:

@@ -80,6 +80,7 @@ THE SOFTWARE.
 #include "OgreShaderExGBuffer.h"
 #include "OgreShaderExWBOIT.h"
 #include "OgreShaderCookTorranceLighting.h"
+#include "OgreShaderImageBasedLighting.h"
 
 #include "OgreShaderHLSLProgramProcessor.h"
 #include "OgreShaderGLSLProgramProcessor.h"
@@ -87,7 +88,6 @@ THE SOFTWARE.
 #include "OgreShaderProgramWriter.h"
 #include "OgreShaderProgramWriterManager.h"
 #include "OgreShaderCGProgramWriter.h"
-#include "OgreShaderHLSLProgramWriter.h"
 #include "OgreShaderGLSLProgramWriter.h"
 #include "OgreShaderGLSLESProgramWriter.h"
 
@@ -100,12 +100,7 @@ THE SOFTWARE.
 #define FFP_FUNC_GENERATE_TEXCOORD_ENV_NORMAL       "FFP_GenerateTexCoord_EnvMap_Normal"
 #define FFP_FUNC_GENERATE_TEXCOORD_ENV_SPHERE       "FFP_GenerateTexCoord_EnvMap_Sphere"
 #define FFP_FUNC_GENERATE_TEXCOORD_ENV_REFLECT      "FFP_GenerateTexCoord_EnvMap_Reflect"
-#define FFP_FUNC_GENERATE_TEXCOORD_PROJECTION       "FFP_GenerateTexCoord_Projection"
 
-#define FFP_FUNC_SAMPLE_TEXTURE_PROJ                "FFP_SampleTextureProj"
-#define FFP_FUNC_MODULATEX2                         "FFP_ModulateX2"
-#define FFP_FUNC_MODULATEX4                         "FFP_ModulateX4"
-#define FFP_FUNC_ADDSIGNED                          "FFP_AddSigned"
 #define FFP_FUNC_ADDSMOOTH                          "FFP_AddSmooth"
 #define FFP_FUNC_DOTPRODUCT                         "FFP_DotProduct"
 

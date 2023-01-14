@@ -157,12 +157,12 @@ vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
     float lod = (pbrInputs.perceptualRoughness * mipCount);
     // retrieve a scale and bias to F0. See [1], Figure 3
     vec3 brdf = SRGBtoLINEAR(texture2D(u_brdfLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness))).rgb;
-    vec3 diffuseLight = SRGBtoLINEAR(textureCube(u_DiffuseEnvSampler, n)).rgb;
+    vec3 diffuseLight = textureCube(u_DiffuseEnvSampler, n).rgb;
 
 #ifdef USE_TEX_LOD
-    vec3 specularLight = SRGBtoLINEAR(textureCubeLod(u_SpecularEnvSampler, reflection, lod)).rgb;
+    vec3 specularLight = textureCubeLod(u_SpecularEnvSampler, reflection, lod).rgb;
 #else
-    vec3 specularLight = SRGBtoLINEAR(textureCube(u_SpecularEnvSampler, reflection)).rgb;
+    vec3 specularLight = textureCube(u_SpecularEnvSampler, reflection).rgb;
 #endif
 
     vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
@@ -289,6 +289,7 @@ MAIN_DECLARATION
     vec3 l = normalize(u_LightDirection);             // Vector from surface point to light
     vec3 h = normalize(l+v);                          // Half vector between both l and v
     vec3 reflection = -normalize(reflect(v, n));
+    reflection.z *= -1.0;
 
     pbrInputs.NdotL = clamp(dot(n, l), 0.001, 1.0);
     pbrInputs.NdotV = abs(dot(n, v)) + 0.001;

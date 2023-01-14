@@ -90,7 +90,7 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
     }
 
     // add the lighting computation
-    In mrparams(ParameterPtr(NULL));
+    auto mrparams = psMain->resolveLocalParameter(GCT_FLOAT2, "metalRoughness");
     if(!mMetalRoughnessMapName.empty())
     {
         auto metalRoughnessSampler =
@@ -99,21 +99,27 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
         fstage.sampleTexture(metalRoughnessSampler, psInTexcoord, mrSample);
-        mrparams = In(mrSample).mask(Operand::OPM_YZ);
+        fstage.assign(In(mrSample).mask(Operand::OPM_YZ), mrparams);
     }
     else
     {
         auto specular = psProgram->resolveParameter(GpuProgramParameters::ACT_SURFACE_SPECULAR_COLOUR);
-        mrparams = In(specular).xy();
+        fstage.assign(In(specular).xy(), mrparams);
     }
 
     auto sceneCol = psProgram->resolveParameter(GpuProgramParameters::ACT_DERIVED_SCENE_COLOUR);
     auto litResult = psMain->resolveLocalParameter(GCT_FLOAT4, "litResult");
     auto diffuse = psProgram->resolveParameter(GpuProgramParameters::ACT_SURFACE_DIFFUSE_COLOUR);
+    auto baseColor = psMain->resolveLocalParameter(GCT_FLOAT3, "baseColor");
 
-    fstage.mul(diffuse, outDiffuse, outDiffuse);
-    fstage.assign(Vector4(0), litResult);
+    auto pixelParams = psMain->resolveLocalStructParameter("PixelParams", "pixel");
 
+    fstage.mul(In(diffuse).xyz(), In(outDiffuse).xyz(), baseColor);
+    fstage.assign(Vector3(0), Out(outDiffuse).xyz());
+
+    fstage.callFunction("PBR_MakeParams", {In(baseColor), In(mrparams), InOut(pixelParams)});
+
+    fstage = psMain->getStage(FFP_PS_COLOUR_END + 60); // make gap to inject IBL here
     if(mLightCount > 0)
     {
         auto lightPos = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_POSITION_VIEW_SPACE_ARRAY, mLightCount);
@@ -124,7 +130,7 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
 
         std::vector<Operand> params = {In(viewNormal),       In(viewPos),     In(sceneCol),          In(lightPos),
                                        In(lightDiffuse),     In(pointParams), In(lightDirView),      In(spotParams),
-                                       In(outDiffuse).xyz(), mrparams,        InOut(litResult).xyz()};
+                                       In(pixelParams),      InOut(outDiffuse).xyz()};
 
         if (auto shadowFactor = psMain->getLocalParameter("lShadowFactor"))
         {
@@ -134,8 +140,6 @@ bool CookTorranceLighting::createCpuSubPrograms(ProgramSet* programSet)
 
         fstage.callFunction("PBR_Lights", params);
     }
-
-    fstage.assign(In(litResult).xyz(), Out(outDiffuse).xyz());
 
     return true;
 }

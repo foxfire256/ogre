@@ -202,6 +202,11 @@ namespace Ogre
         }
 
         Texture::loadImpl();
+
+        // with D3DUSAGE_AUTOGENMIPMAP, GetLevelCount always returns 1 for the number of levels.
+        // currect this after loading
+        if (mUsage & TU_AUTOMIPMAP)
+            mNumMipmaps = getMaxMipmaps();
     }
 
     /****************************************************************************************/
@@ -392,7 +397,7 @@ namespace Ogre
 
         // Use D3DX to help us create the texture, this way it can adjust any relevant sizes
         DWORD usage = (mUsage & TU_RENDERTARGET) ? D3DUSAGE_RENDERTARGET : 0;
-        UINT numMips = (mNumMipmaps == MIP_UNLIMITED) ? 0 : mNumMipmaps + 1;
+        UINT numMips = (mNumRequestedMipmaps == MIP_UNLIMITED) ? 0 : mNumMipmaps + 1;
         // Check dynamic textures
         if (mUsage & TU_DYNAMIC)
         {
@@ -555,7 +560,7 @@ namespace Ogre
 
         // Use D3DX to help us create the texture, this way it can adjust any relevant sizes
         DWORD usage = (mUsage & TU_RENDERTARGET) ? D3DUSAGE_RENDERTARGET : 0;
-        UINT numMips = (mNumMipmaps == MIP_UNLIMITED) ? 0 : mNumMipmaps + 1;
+        UINT numMips = (mNumRequestedMipmaps == MIP_UNLIMITED) ? 0 : mNumMipmaps + 1;
         // Check dynamic textures
         if (mUsage & TU_DYNAMIC)
         {
@@ -711,7 +716,7 @@ namespace Ogre
 
         // Use D3DX to help us create the texture, this way it can adjust any relevant sizes
         DWORD usage = (mUsage & TU_RENDERTARGET) ? D3DUSAGE_RENDERTARGET : 0;
-        UINT numMips = (mNumMipmaps == MIP_UNLIMITED) ? 0 : mNumMipmaps + 1;
+        UINT numMips = (mNumRequestedMipmaps == MIP_UNLIMITED) ? 0 : mNumMipmaps + 1;
         // Check dynamic textures
         if (mUsage & TU_DYNAMIC)
         {

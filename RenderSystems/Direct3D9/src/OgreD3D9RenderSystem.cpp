@@ -35,7 +35,6 @@ THE SOFTWARE.
 #include "OgreD3D9TextureManager.h"
 #include "OgreD3D9Texture.h"
 #include "OgreLogManager.h"
-#include "OgreLight.h"
 #include "OgreMath.h"
 #include "OgreViewport.h"
 #include "OgreD3D9HardwareBufferManager.h"
@@ -899,11 +898,6 @@ namespace Ogre
         {
             D3D9Driver* pCurDriver       = mDriverList->item(i);            
             const D3DCAPS9& rkCurCaps    = pCurDriver->getD3D9DeviceCaps();
-
-            if (rkCurCaps.MaxSimultaneousTextures < rsc->getNumTextureUnits())
-            {
-                rsc->setNumTextureUnits(static_cast<ushort>(rkCurCaps.MaxSimultaneousTextures));
-            }
 
             bool has_level_9_1 = true;
 

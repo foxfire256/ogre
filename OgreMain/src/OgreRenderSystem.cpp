@@ -416,11 +416,20 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void RenderSystem::_setTextureUnitSettings(size_t texUnit, TextureUnitState& tl)
     {
+        if(texUnit >= getCapabilities()->getNumTextureUnits())
+            return;
+
         // This method is only ever called to set a texture unit to valid details
         // The method _disableTextureUnit is called to turn a unit off
         TexturePtr tex = tl._getTexturePtr();
         if(!tex || tl.isTextureLoadFailing())
             tex = mTextureManager->_getWarningTexture();
+
+        if(tl.getUnorderedAccessMipLevel() > -1)
+        {
+            tex->createShaderAccessPoint(texUnit, TA_READ_WRITE, tl.getUnorderedAccessMipLevel());
+            return;
+        }
 
         // Bind texture (may be blank)
         _setTexture(texUnit, true, tex);
@@ -438,51 +447,15 @@ namespace Ogre {
         _setTextureBlendMode(texUnit, tl.getColourBlendMode());
         _setTextureBlendMode(texUnit, tl.getAlphaBlendMode());
 
-        // Iterate over new effects
-        bool anyCalcs = false;
-        for (auto &effi : tl.mEffects)
+        auto calcMode = tl._deriveTexCoordCalcMethod();
+        if(calcMode == TEXCALC_PROJECTIVE_TEXTURE)
         {
-            switch (effi.second.type)
-            {
-            case TextureUnitState::ET_ENVIRONMENT_MAP:
-                if (effi.second.subtype == TextureUnitState::ENV_CURVED)
-                {
-                    _setTextureCoordCalculation(texUnit, TEXCALC_ENVIRONMENT_MAP);
-                    anyCalcs = true;
-                }
-                else if (effi.second.subtype == TextureUnitState::ENV_PLANAR)
-                {
-                    _setTextureCoordCalculation(texUnit, TEXCALC_ENVIRONMENT_MAP_PLANAR);
-                    anyCalcs = true;
-                }
-                else if (effi.second.subtype == TextureUnitState::ENV_REFLECTION)
-                {
-                    _setTextureCoordCalculation(texUnit, TEXCALC_ENVIRONMENT_MAP_REFLECTION);
-                    anyCalcs = true;
-                }
-                else if (effi.second.subtype == TextureUnitState::ENV_NORMAL)
-                {
-                    _setTextureCoordCalculation(texUnit, TEXCALC_ENVIRONMENT_MAP_NORMAL);
-                    anyCalcs = true;
-                }
-                break;
-            case TextureUnitState::ET_UVSCROLL:
-            case TextureUnitState::ET_USCROLL:
-            case TextureUnitState::ET_VSCROLL:
-            case TextureUnitState::ET_ROTATE:
-            case TextureUnitState::ET_TRANSFORM:
-                break;
-            case TextureUnitState::ET_PROJECTIVE_TEXTURE:
-                _setTextureCoordCalculation(texUnit, TEXCALC_PROJECTIVE_TEXTURE, 
-                    effi.second.frustum);
-                anyCalcs = true;
-                break;
-            }
+            auto frustum = tl.getEffects().find(TextureUnitState::ET_PROJECTIVE_TEXTURE)->second.frustum;
+            _setTextureCoordCalculation(texUnit, calcMode, frustum);
         }
-        // Ensure any previous texcoord calc settings are reset if there are now none
-        if (!anyCalcs)
+        else
         {
-            _setTextureCoordCalculation(texUnit, TEXCALC_NONE);
+            _setTextureCoordCalculation(texUnit, calcMode);
         }
 
         // Change tetxure matrix 
@@ -527,28 +500,18 @@ namespace Ogre {
     //---------------------------------------------------------------------
     void RenderSystem::_cleanupDepthBuffers( bool bCleanManualBuffers )
     {
-        DepthBufferMap::iterator itMap = mDepthBufferPool.begin();
-        DepthBufferMap::iterator enMap = mDepthBufferPool.end();
-
-        while( itMap != enMap )
+        for (auto& m : mDepthBufferPool)
         {
-            DepthBufferVec::const_iterator itor = itMap->second.begin();
-            DepthBufferVec::const_iterator end  = itMap->second.end();
-
-            while( itor != end )
+            for (auto *b : m.second)
             {
-                if( bCleanManualBuffers || !(*itor)->isManual() )
-                    delete *itor;
-                ++itor;
+                if (bCleanManualBuffers || !b->isManual())
+                    delete b;
             }
-
-            itMap->second.clear();
-
-            ++itMap;
+            m.second.clear();
         }
-
         mDepthBufferPool.clear();
     }
+    //-----------------------------------------------------------------------
     void RenderSystem::_beginFrame(void)
     {
         if (!mActiveViewport)
@@ -567,12 +530,11 @@ namespace Ogre {
             return; //RenderTarget explicitly requested no depth buffer
 
         //Find a depth buffer in the pool
-        DepthBufferVec::const_iterator itor = mDepthBufferPool[poolId].begin();
-        DepthBufferVec::const_iterator end  = mDepthBufferPool[poolId].end();
-
         bool bAttached = false;
-        while( itor != end && !bAttached )
-            bAttached = renderTarget->attachDepthBuffer( *itor++ );
+        for (auto& d : mDepthBufferPool[poolId]) {
+            bAttached = renderTarget->attachDepthBuffer(d);
+            if (bAttached) break;
+        }
 
         //Not found yet? Create a new one!
         if( !bAttached )
@@ -835,8 +797,8 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void RenderSystem::destroyHardwareOcclusionQuery( HardwareOcclusionQuery *hq)
     {
-        auto end { mHwOcclusionQueries.end() };
-        auto i { std::find(mHwOcclusionQueries.begin(), end, hq) };
+        auto end = mHwOcclusionQueries.end();
+        auto i = std::find(mHwOcclusionQueries.begin(), end, hq);
         if (i != end)
         {
             mHwOcclusionQueries.erase(i);

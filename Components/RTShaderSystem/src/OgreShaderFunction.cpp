@@ -49,12 +49,12 @@ static GpuConstantType typeFromContent(Parameter::Content content)
     case Parameter::SPC_POSITION_LIGHT_SPACE5:
     case Parameter::SPC_POSITION_LIGHT_SPACE6:
     case Parameter::SPC_POSITION_LIGHT_SPACE7:
+    case Parameter::SPC_TANGENT_OBJECT_SPACE:
         return GCT_FLOAT4;
     case Parameter::SPC_NORMAL_TANGENT_SPACE:
     case Parameter::SPC_NORMAL_OBJECT_SPACE:
     case Parameter::SPC_NORMAL_WORLD_SPACE:
     case Parameter::SPC_NORMAL_VIEW_SPACE:
-    case Parameter::SPC_TANGENT_OBJECT_SPACE:
     case Parameter::SPC_POSTOCAMERA_TANGENT_SPACE:
     case Parameter::SPC_POSTOCAMERA_OBJECT_SPACE:
     case Parameter::SPC_POSTOCAMERA_VIEW_SPACE:
@@ -420,6 +420,24 @@ ParameterPtr Function::resolveLocalParameter(GpuConstantType type, const String&
     param = std::make_shared<Parameter>(type, name, Parameter::SPS_UNKNOWN, 0, Parameter::SPC_UNKNOWN);
     addParameter(mLocalParameters, param);
             
+    return param;
+}
+
+ParameterPtr Function::resolveLocalStructParameter(const String& type, const String& name)
+{
+    ParameterPtr param;
+
+    param = _getParameterByName(mLocalParameters, name);
+    if (param)
+    {
+        OgreAssert(param->getStructType() == type, "A parameter with the same name but different type already exists");
+        return param;
+    }
+
+    param = std::make_shared<Parameter>(GCT_UNKNOWN, name, Parameter::SPS_UNKNOWN, 0, Parameter::SPC_UNKNOWN);
+    param->setStructType(type);
+    addParameter(mLocalParameters, param);
+
     return param;
 }
 

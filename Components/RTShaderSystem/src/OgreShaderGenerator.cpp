@@ -265,6 +265,10 @@ void ShaderGenerator::createBuiltinSRSFactories()
         addSubRenderStateFactory(curFactory);
         mBuiltinSRSFactories.push_back(curFactory);
 
+        curFactory = new ImageBasedLightingFactory;
+        addSubRenderStateFactory(curFactory);
+        mBuiltinSRSFactories.push_back(curFactory);
+
         curFactory = OGRE_NEW IntegratedPSSM3Factory;   
         addSubRenderStateFactory(curFactory);
         mBuiltinSRSFactories.push_back(curFactory);
@@ -1179,86 +1183,6 @@ ScriptTranslator* ShaderGenerator::getTranslator(const AbstractNodePtr& node)
         return &mCoreScriptTranslator;
     
     return NULL;
-}
-
-//-----------------------------------------------------------------------------
-void ShaderGenerator::serializePassAttributes(MaterialSerializer* ser, SGPass* passEntry)
-{
-    
-    // Write section header and begin it.
-    ser->writeAttribute(3, "rtshader_system");
-    ser->beginSection(3);
-
-    // Grab the custom render state this pass uses.
-    RenderState* customRenderState = passEntry->getCustomRenderState();
-
-    if (customRenderState != NULL)
-    {
-        // Write each of the sub-render states that composing the final render state.
-        const SubRenderStateList& subRenderStates = customRenderState->getSubRenderStates();
-        SubRenderStateListConstIterator it      = subRenderStates.begin();
-        SubRenderStateListConstIterator itEnd   = subRenderStates.end();
-
-        for (; it != itEnd; ++it)
-        {
-            SubRenderState* curSubRenderState = *it;
-            SubRenderStateFactoryIterator itFactory = mSubRenderStateFactories.find(curSubRenderState->getType());
-
-            if (itFactory != mSubRenderStateFactories.end())
-            {
-                SubRenderStateFactory* curFactory = itFactory->second;
-                curFactory->writeInstance(ser, curSubRenderState, passEntry->getSrcPass(), passEntry->getDstPass());
-            }
-        }
-    }
-    
-    // Write section end.
-    ser->endSection(3);     
-}
-
-
-
-//-----------------------------------------------------------------------------
-void ShaderGenerator::serializeTextureUnitStateAttributes(MaterialSerializer* ser, SGPass* passEntry, const TextureUnitState* srcTextureUnit)
-{
-    
-    // Write section header and begin it.
-    ser->writeAttribute(4, "rtshader_system");
-    ser->beginSection(4);
-
-    // Grab the custom render state this pass uses.
-    RenderState* customRenderState = passEntry->getCustomRenderState();
-            
-    if (customRenderState != NULL)
-    {
-        //retrive the destintion texture unit state
-        TextureUnitState* dstTextureUnit = NULL;
-        unsigned short texIndex = srcTextureUnit->getParent()->getTextureUnitStateIndex(srcTextureUnit);
-        if (texIndex < passEntry->getDstPass()->getNumTextureUnitStates())
-        {
-            dstTextureUnit = passEntry->getDstPass()->getTextureUnitState(texIndex);
-        }
-        
-        // Write each of the sub-render states that composing the final render state.
-        const SubRenderStateList& subRenderStates = customRenderState->getSubRenderStates();
-        SubRenderStateListConstIterator it      = subRenderStates.begin();
-        SubRenderStateListConstIterator itEnd   = subRenderStates.end();
-
-        for (; it != itEnd; ++it)
-        {
-            SubRenderState* curSubRenderState = *it;
-            SubRenderStateFactoryIterator itFactory = mSubRenderStateFactories.find(curSubRenderState->getType());
-
-            if (itFactory != mSubRenderStateFactories.end())
-            {
-                SubRenderStateFactory* curFactory = itFactory->second;
-                curFactory->writeInstance(ser, curSubRenderState, srcTextureUnit, dstTextureUnit);
-            }
-        }
-    }
-    
-    // Write section end.
-    ser->endSection(4);     
 }
 
 //-----------------------------------------------------------------------------

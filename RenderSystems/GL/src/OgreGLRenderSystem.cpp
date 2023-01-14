@@ -31,8 +31,7 @@ THE SOFTWARE.
 #include "OgreGLNativeSupport.h"
 #include "OgreLogManager.h"
 #include "OgreStringConverter.h"
-#include "OgreLight.h"
-#include "OgreCamera.h"
+#include "OgreFrustum.h"
 #include "OgreGLTextureManager.h"
 #include "OgreGLHardwareBuffer.h"
 #include "OgreDefaultHardwareBufferManager.h"
@@ -1361,8 +1360,7 @@ namespace Ogre {
     {
         GLenum lastTextureType = mTextureTypes[stage];
 
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
+        mStateCacheManager->activateGLTextureUnit(stage);
 
         if (enabled)
         {
@@ -1407,8 +1405,7 @@ namespace Ogre {
 
     void GLRenderSystem::_setSampler(size_t unit, Sampler& sampler)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(unit))
-            return;
+        mStateCacheManager->activateGLTextureUnit(unit);
 
         GLenum target = mTextureTypes[unit];
 
@@ -1484,8 +1481,7 @@ namespace Ogre {
         GLfloat eyePlaneR[] = {0.0, 0.0, 1.0, 0.0};
         GLfloat eyePlaneQ[] = {0.0, 0.0, 0.0, 1.0};
 
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
+        mStateCacheManager->activateGLTextureUnit(stage);
 
         switch( m )
         {
@@ -1611,8 +1607,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     void GLRenderSystem::_setTextureAddressingMode(size_t stage, const Sampler::UVWAddressingMode& uvw)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
+        mStateCacheManager->activateGLTextureUnit(stage);
         mStateCacheManager->setTexParameteri( mTextureTypes[stage], GL_TEXTURE_WRAP_S,
                          getTextureAddressingMode(uvw.u));
         mStateCacheManager->setTexParameteri( mTextureTypes[stage], GL_TEXTURE_WRAP_T,
@@ -1629,8 +1624,7 @@ namespace Ogre {
             return;
         }
 
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
+        mStateCacheManager->activateGLTextureUnit(stage);
         glMatrixMode(GL_TEXTURE);
 
         // Load this matrix in
@@ -2021,8 +2015,7 @@ namespace Ogre {
     void GLRenderSystem::_setTextureUnitFiltering(size_t unit,
                                                   FilterType ftype, FilterOptions fo)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(unit))
-            return;
+        mStateCacheManager->activateGLTextureUnit(unit);
         switch(ftype)
         {
         case FT_MIN:
@@ -2198,8 +2191,7 @@ namespace Ogre {
             cmd = 0;
         }
 
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
+        mStateCacheManager->activateGLTextureUnit(stage);
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE);
 
         if (bm.blendType == LBT_COLOUR)

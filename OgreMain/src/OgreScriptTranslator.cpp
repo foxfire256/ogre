@@ -1126,13 +1126,12 @@ namespace Ogre{
                         compiler->addError(ScriptCompiler::CE_DEPRECATEDSYMBOL, prop->file,
                                            prop->line,
                                            "lod_distances. Use lod_values.");
-
                         // Read in LOD distances
                         Material::LodValueList lods;
-                        for(AbstractNodeList::iterator j = prop->values.begin(); j != prop->values.end(); ++j)
+                        for(auto& j : prop->values)
                         {
                             Real v = 0;
-                            if(getReal(*j, &v))
+                            if(getReal(j, &v))
                                 lods.push_back(v);
                             else
                                 compiler->addError(ScriptCompiler::CE_NUMBEREXPECTED, prop->file, prop->line,
@@ -2637,6 +2636,10 @@ namespace Ogre{
                             compiler->addError(ScriptCompiler::CE_REFERENCETOANONEXISTINGOBJECT,
                                                prop->file, prop->line, sval);
                     }
+                    break;
+                case ID_UNORDERED_ACCESS_MIP:
+                    if(getValue(prop, compiler, uival))
+                        mUnit->setUnorderedAccessMipLevel(uival);
                     break;
                 case ID_TEXTURE_ALIAS:
                     compiler->addError(ScriptCompiler::CE_DEPRECATEDSYMBOL, prop->file, prop->line,
@@ -4436,14 +4439,14 @@ namespace Ogre{
                         String name = prop->name, value;
 
                         // Glob the values together
-                        for(AbstractNodeList::iterator it = prop->values.begin(); it != prop->values.end(); ++it)
+                        for(auto& v : prop->values)
                         {
-                            if((*it)->type == ANT_ATOM)
+                            if(v->type == ANT_ATOM)
                             {
                                 if(value.empty())
-                                    value = ((AtomAbstractNode*)(*it).get())->value;
+                                    value = ((AtomAbstractNode*)v.get())->value;
                                 else
-                                    value = value + " " + ((AtomAbstractNode*)(*it).get())->value;
+                                    value = value + " " + ((AtomAbstractNode*)v.get())->value;
                             }
                             else
                             {

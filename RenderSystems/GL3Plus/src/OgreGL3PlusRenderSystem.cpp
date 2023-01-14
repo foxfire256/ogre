@@ -32,8 +32,6 @@ Copyright (c) 2000-2014 Torus Knot Software Ltd
 #include "OgreRenderSystem.h"
 #include "OgreLogManager.h"
 #include "OgreStringConverter.h"
-#include "OgreLight.h"
-#include "OgreCamera.h"
 #include "OgreGL3PlusTextureManager.h"
 #include "OgreGL3PlusHardwareBuffer.h"
 #include "OgreGLSLShader.h"
@@ -705,9 +703,7 @@ namespace Ogre {
 
     void GL3PlusRenderSystem::_setTexture(size_t stage, bool enabled, const TexturePtr &texPtr)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
-
+        mStateCacheManager->activateGLTextureUnit(stage);
         if (enabled)
         {
             GL3PlusTexturePtr tex = static_pointer_cast<GL3PlusTexture>(texPtr);
@@ -732,8 +728,7 @@ namespace Ogre {
 
     void GL3PlusRenderSystem::_setTextureAddressingMode(size_t stage, const Sampler::UVWAddressingMode& uvw)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(stage))
-            return;
+        mStateCacheManager->activateGLTextureUnit(stage);
         mStateCacheManager->setTexParameteri(mTextureTypes[stage], GL_TEXTURE_WRAP_S,
                                              GL3PlusSampler::getTextureAddressingMode(uvw.u));
         mStateCacheManager->setTexParameteri(mTextureTypes[stage], GL_TEXTURE_WRAP_T,
@@ -1023,9 +1018,7 @@ namespace Ogre {
 
     void GL3PlusRenderSystem::_setTextureUnitFiltering(size_t unit, FilterType ftype, FilterOptions fo)
     {
-        if (!mStateCacheManager->activateGLTextureUnit(unit))
-            return;
-
+        mStateCacheManager->activateGLTextureUnit(unit);
         switch (ftype)
         {
         case FT_MIN:
