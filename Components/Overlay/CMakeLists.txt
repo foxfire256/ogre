@@ -36,14 +36,14 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp)
+    ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp)
   if(FREETYPE_FOUND)
     set(IMGUI_ENABLE_FREETYPE TRUE)
     list(APPEND SOURCE_FILES ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp)
   endif()
   if(SDL2_FOUND)
     list(APPEND SOURCE_FILES
-      ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp)
+      ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp)
   endif()
 else()
     list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/OgreImGuiOverlay.cpp")
@@ -101,7 +101,7 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
     ${IMGUI_DIR}/imconfig.h)
   if(SDL2_FOUND)
     list(APPEND HEADER_FILES
-      ${IMGUI_DIR}/backends/imgui_impl_sdl.h)
+      ${IMGUI_DIR}/backends/imgui_impl_sdl2.h)
 	if(MACOS)
 	  target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2)
 	else(MACOS)
