@@ -85,11 +85,6 @@ namespace Ogre {
         return mOptions;
     }
 
-    String EAGL2Support::getDisplayName(void)
-    {
-        return "todo";
-	}
-
     CFDictionaryRef EAGL2Support::chooseGLConfig(const GLint *attribList, GLint *nElements)
     {
         // TODO: DJR - implement
@@ -107,15 +102,6 @@ namespace Ogre {
     }
 
     CFDictionaryRef EAGL2Support::getGLConfigFromContext(EAGLES2Context context)
-    {
-        // TODO: DJR - implement
-        CFDictionaryRef glConfig = 0;
-
-        return glConfig;
-    }
-
-    CFDictionaryRef EAGL2Support::getGLConfigFromDrawable(CAEAGLLayer *drawable,
-                                                    unsigned int *w, unsigned int *h)
     {
         // TODO: DJR - implement
         CFDictionaryRef glConfig = 0;

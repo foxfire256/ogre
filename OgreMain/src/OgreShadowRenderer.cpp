@@ -88,6 +88,25 @@ void SceneManager::ShadowRenderer::setShadowColour(const ColourValue& colour)
     mShadowColour = colour;
 }
 
+void SceneManager::ShadowRenderer::updateSplitOptions(RenderQueue* queue)
+{
+    int shadowTechnique = mShadowTechnique;
+    if(!mSceneManager->getCurrentViewport()->getShadowsEnabled())
+        shadowTechnique = SHADOWTYPE_NONE;
+
+    bool notIntegrated = (shadowTechnique & SHADOWDETAILTYPE_INTEGRATED) == 0;
+
+    // Stencil Casters can always be receivers
+    queue->setShadowCastersCannotBeReceivers(!(shadowTechnique & SHADOWDETAILTYPE_STENCIL) &&
+                                             !mShadowTextureSelfShadow);
+
+    // Additive lighting, we need to split everything by illumination stage
+    queue->setSplitPassesByLightingType((shadowTechnique & SHADOWDETAILTYPE_ADDITIVE) && notIntegrated);
+
+    // Tell render queue to split off non-shadowable materials
+    queue->setSplitNoShadowPasses(shadowTechnique && notIntegrated);
+}
+
 void SceneManager::ShadowRenderer::render(RenderQueueGroup* group,
                                           QueuedRenderableCollection::OrganisationMode om)
 {
@@ -1868,6 +1887,36 @@ void SceneManager::ShadowRenderer::fireShadowTexturesPreReceiver(Light* light, F
         l->shadowTextureReceiverPreViewProj(light, f);
     }
 }
+
+namespace
+{
+/** Default sorting routine which sorts lights which cast shadows
+to the front of a list, sub-sorting by distance.
+
+Since shadow textures are generated from lights based on the
+frustum rather than individual objects, a shadow and camera-wise sort is
+required to pick the best lights near the start of the list. Up to
+the number of shadow textures will be generated from this.
+*/
+struct lightsForShadowTextureLess
+{
+    bool operator()(const Light* l1, const Light* l2) const
+    {
+        if (l1 == l2)
+            return false;
+
+        // sort shadow casting lights ahead of non-shadow casting
+        if (l1->getCastShadows() != l2->getCastShadows())
+        {
+            return l1->getCastShadows();
+        }
+
+        // otherwise sort by distance (directional lights will have 0 here)
+        return l1->tempSquareDist < l2->tempSquareDist;
+    }
+};
+} // namespace
+
 void SceneManager::ShadowRenderer::sortLightsAffectingFrustum(LightList& lightList) const
 {
     if ((mShadowTechnique & SHADOWDETAILTYPE_TEXTURE) == 0)

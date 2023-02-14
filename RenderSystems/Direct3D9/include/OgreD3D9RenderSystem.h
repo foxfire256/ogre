@@ -109,6 +109,9 @@ namespace Ogre
             IDirect3DBaseTexture9 *pTex;
         } mTexStageDesc[OGRE_MAX_TEXTURE_LAYERS];
 
+        /// Saved manual colour blends
+        ColourValue mManualBlendColours[OGRE_MAX_TEXTURE_LAYERS][2];
+
         // Array of up to 8 lights, indexed as per API
         // Note that a null value indicates a free slot
         Light* mLights[MAX_LIGHTS];     
@@ -281,7 +284,6 @@ namespace Ogre
         void _setTextureCoordCalculation(size_t unit, TexCoordCalcMethod m, 
             const Frustum* frustum = 0);
         void _setTextureBlendMode( size_t unit, const LayerBlendModeEx& bm );
-        void _setTextureAddressingMode(size_t stage, const Sampler::UVWAddressingMode& uvw);
         void _setTextureMatrix( size_t unit, const Matrix4 &xform );
         void _setAlphaRejectSettings( CompareFunction func, unsigned char value, bool alphaToCoverage );
         void _setViewport( Viewport *vp );      
@@ -300,7 +302,6 @@ namespace Ogre
         void _convertProjectionMatrix(const Matrix4& matrix,
             Matrix4& dest, bool forGpuProgram = false);
         void _setPolygonMode(PolygonMode level);
-        void _setTextureUnitFiltering(size_t unit, FilterType ftype, FilterOptions filter);
         void setVertexDeclaration(VertexDeclaration* decl);
         void setVertexBufferBinding(VertexBufferBinding* binding, int numberOfInstances, bool indexesUsed);
         void _render(const RenderOperation& op);

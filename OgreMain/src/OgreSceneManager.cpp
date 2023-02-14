@@ -43,7 +43,6 @@ THE SOFTWARE.
 #include "OgreInstancedEntity.h"
 #include "OgreRenderTexture.h"
 #include "OgreLodListener.h"
-#include "OgreUnifiedHighLevelGpuProgram.h"
 #include "OgreDefaultDebugDrawer.h"
 
 // This class implements the most basic scene manager
@@ -51,7 +50,6 @@ THE SOFTWARE.
 #include <cstdio>
 
 namespace Ogre {
-static const String INVOCATION_SHADOWS = "SHADOWS";
 //-----------------------------------------------------------------------
 SceneManager::SceneManager(const String& name) :
 mName(name),
@@ -315,11 +313,6 @@ const LightList& SceneManager::_getLightsAffectingFrustum(void) const
     return mLightsAffectingFrustum;
 }
 //-----------------------------------------------------------------------
-bool SceneManager::lightLess::operator()(const Light* a, const Light* b) const
-{
-    return a->tempSquareDist < b->tempSquareDist;
-}
-//-----------------------------------------------------------------------
 void SceneManager::_populateLightList(const Vector3& position, Real radius, LightList& destList, uint32 lightMask)
 {
     // Really basic trawl of the lights, then sort
@@ -363,7 +356,8 @@ void SceneManager::_populateLightList(const Vector3& position, Real radius, Ligh
     // Thus we only allow object-relative sorting on the remainder of the list
     std::advance(start, std::min(numShadowCastingLights, destList.size()));
     // Sort (stable to guarantee ordering on directional lights)
-    std::stable_sort(start, destList.end(), lightLess());
+    std::stable_sort(start, destList.end(),
+                     [](const Light* a, const Light* b) { return a->tempSquareDist < b->tempSquareDist; });
 
     // Now assign indexes in the list so they can be examined if needed
     lightIndex = 0;
@@ -1081,7 +1075,7 @@ void SceneManager::prepareRenderQueue(void)
     }
 
     // Global split options
-    updateRenderQueueSplitOptions();
+    mShadowRenderer.updateSplitOptions(q);
 }
 //-----------------------------------------------------------------------
 void SceneManager::_renderScene(Camera* camera, Viewport* vp, bool includeOverlays)
@@ -1330,28 +1324,6 @@ void SceneManager::setWorldGeometry(DataStreamPtr& stream,
         "World geometry is not supported by the generic SceneManager.",
         "SceneManager::setWorldGeometry");
 }
-
-//-----------------------------------------------------------------------
-bool SceneManager::materialLess::operator() (const Material* x, const Material* y) const
-{
-    // If x transparent and y not, x > y (since x has to overlap y)
-    if (x->isTransparent() && !y->isTransparent())
-    {
-        return false;
-    }
-    // If y is transparent and x not, x < y
-    else if (!x->isTransparent() && y->isTransparent())
-    {
-        return true;
-    }
-    else
-    {
-        // Otherwise don't care (both transparent or both solid)
-        // Just arbitrarily use pointer
-        return x < y;
-    }
-
-}
 //-----------------------------------------------------------------------
 void SceneManager::setSkyPlane(
                                bool enable,
@@ -1472,8 +1444,7 @@ void SceneManager::renderVisibleObjectsDefaultSequence(void)
         do // for repeating queues
         {
             // Fire queue started event
-            if (fireRenderQueueStarted(qId, mIlluminationStage == IRS_RENDER_TO_TEXTURE ? INVOCATION_SHADOWS
-                                                                                        : BLANKSTRING))
+            if (fireRenderQueueStarted(qId, mCameraInProgress->getName()))
             {
                 // Someone requested we skip this queue
                 break;
@@ -1482,8 +1453,7 @@ void SceneManager::renderVisibleObjectsDefaultSequence(void)
             _renderQueueGroupObjects(pGroup, QueuedRenderableCollection::OM_PASS_GROUP);
 
             // Fire queue ended event
-            if (fireRenderQueueEnded(qId, mIlluminationStage == IRS_RENDER_TO_TEXTURE ? INVOCATION_SHADOWS
-                                                                                      : BLANKSTRING))
+            if (fireRenderQueueEnded(qId, mCameraInProgress->getName()))
             {
                 // Someone requested we repeat this queue
                 repeatQueue = true;
@@ -2547,22 +2517,22 @@ void SceneManager::firePostRenderQueues()
     }
 }
 //---------------------------------------------------------------------
-bool SceneManager::fireRenderQueueStarted(uint8 id, const String& invocation)
+bool SceneManager::fireRenderQueueStarted(uint8 id, const String& cameraName)
 {
     bool skip = false;
     for (auto *l : mRenderQueueListeners)
     {
-        l->renderQueueStarted(id, invocation, skip);
+        l->renderQueueStarted(id, cameraName, skip);
     }
     return skip;
 }
 //---------------------------------------------------------------------
-bool SceneManager::fireRenderQueueEnded(uint8 id, const String& invocation)
+bool SceneManager::fireRenderQueueEnded(uint8 id, const String& cameraName)
 {
     bool repeat = false;
     for (auto *l : mRenderQueueListeners)
     {
-        l->renderQueueEnded(id, invocation, repeat);
+        l->renderQueueEnded(id, cameraName, repeat);
     }
     return repeat;
 }
@@ -2660,102 +2630,10 @@ void SceneManager::setShadowTechnique(ShadowTechnique technique)
 {
     mShadowRenderer.setShadowTechnique(technique);
 }
-//---------------------------------------------------------------------
-void SceneManager::updateRenderQueueSplitOptions(void)
-{
-    if (isShadowTechniqueStencilBased())
-    {
-        // Casters can always be receivers
-        getRenderQueue()->setShadowCastersCannotBeReceivers(false);
-    }
-    else // texture based
-    {
-        getRenderQueue()->setShadowCastersCannotBeReceivers(!mShadowRenderer.mShadowTextureSelfShadow);
-    }
-
-    if (isShadowTechniqueAdditive() && !isShadowTechniqueIntegrated()
-        && mCurrentViewport->getShadowsEnabled())
-    {
-        // Additive lighting, we need to split everything by illumination stage
-        getRenderQueue()->setSplitPassesByLightingType(true);
-    }
-    else
-    {
-        getRenderQueue()->setSplitPassesByLightingType(false);
-    }
-
-    if (isShadowTechniqueInUse() && mCurrentViewport->getShadowsEnabled()
-        && !isShadowTechniqueIntegrated())
-    {
-        // Tell render queue to split off non-shadowable materials
-        getRenderQueue()->setSplitNoShadowPasses(true);
-    }
-    else
-    {
-        getRenderQueue()->setSplitNoShadowPasses(false);
-    }
-
-
-}
-//---------------------------------------------------------------------
-void SceneManager::updateRenderQueueGroupSplitOptions(RenderQueueGroup* group, 
-    bool suppressShadows, bool suppressRenderState)
-{
-    if (isShadowTechniqueStencilBased())
-    {
-        // Casters can always be receivers
-        group->setShadowCastersCannotBeReceivers(false);
-    }
-    else if (isShadowTechniqueTextureBased()) 
-    {
-        group->setShadowCastersCannotBeReceivers(!mShadowRenderer.mShadowTextureSelfShadow);
-    }
-
-    if (!suppressShadows && mCurrentViewport->getShadowsEnabled() &&
-        isShadowTechniqueAdditive() && !isShadowTechniqueIntegrated())
-    {
-        // Additive lighting, we need to split everything by illumination stage
-        group->setSplitPassesByLightingType(true);
-    }
-    else
-    {
-        group->setSplitPassesByLightingType(false);
-    }
-
-    if (!suppressShadows && mCurrentViewport->getShadowsEnabled() 
-        && isShadowTechniqueInUse())
-    {
-        // Tell render queue to split off non-shadowable materials
-        group->setSplitNoShadowPasses(true);
-    }
-    else
-    {
-        group->setSplitNoShadowPasses(false);
-    }
-
-
-}
 //-----------------------------------------------------------------------
 void SceneManager::_notifyLightsDirty(void)
 {
     ++mLightsDirtyCounter;
-}
-//---------------------------------------------------------------------
-bool SceneManager::lightsForShadowTextureLess::operator ()(
-    const Ogre::Light *l1, const Ogre::Light *l2) const
-{
-    if (l1 == l2)
-        return false;
-
-    // sort shadow casting lights ahead of non-shadow casting
-    if (l1->getCastShadows() != l2->getCastShadows())
-    {
-        return l1->getCastShadows();
-    }
-
-    // otherwise sort by distance (directional lights will have 0 here)
-    return l1->tempSquareDist < l2->tempSquareDist;
-
 }
 //---------------------------------------------------------------------
 void SceneManager::findLightsAffectingFrustum(const Camera* camera)

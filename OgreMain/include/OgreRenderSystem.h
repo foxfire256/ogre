@@ -258,9 +258,6 @@ namespace Ogre
         directly, although  this can be done if the app wants to.
         */
         virtual void _initialise();
-
-        /** Query the real capabilities of the GPU and driver in the RenderSystem*/
-        virtual RenderSystemCapabilities* createRenderSystemCapabilities() const = 0;
  
         /** Get a pointer to the current capabilities being used by the RenderSystem.
 
@@ -541,9 +538,6 @@ namespace Ogre
         virtual void _setTexture(size_t unit, bool enabled, 
             const TexturePtr &texPtr) = 0;
 
-        /// @deprecated obsolete
-        OGRE_DEPRECATED virtual void _setVertexTexture(size_t unit, const TexturePtr& tex);
-
         /**
         Sets the texture coordinate set to use for a texture unit.
 
@@ -575,16 +569,6 @@ namespace Ogre
         @deprecated only needed for fixed function APIs
         */
         virtual void _setTextureBlendMode(size_t unit, const LayerBlendModeEx& bm) {}
-
-        /// @deprecated use _setSampler
-        OGRE_DEPRECATED virtual void _setTextureUnitFiltering(size_t unit, FilterType ftype, FilterOptions filter) {}
-
-        /// @deprecated use _setSampler
-        OGRE_DEPRECATED virtual void _setTextureUnitFiltering(size_t unit, FilterOptions minFilter,
-            FilterOptions magFilter, FilterOptions mipFilter);
-
-        /// @deprecated use _setSampler
-        OGRE_DEPRECATED virtual void _setTextureAddressingMode(size_t unit, const Sampler::UVWAddressingMode& uvw) {}
 
         /** Sets the texture coordinate transformation matrix for a texture unit.
         @param unit Texture unit to affect
@@ -1147,12 +1131,7 @@ namespace Ogre
         RenderTarget * mActiveRenderTarget;
 
         /** The Active GPU programs and gpu program parameters*/
-        GpuProgramParametersSharedPtr mActiveVertexGpuProgramParameters;
-        GpuProgramParametersSharedPtr mActiveGeometryGpuProgramParameters;
-        GpuProgramParametersSharedPtr mActiveFragmentGpuProgramParameters;
-        GpuProgramParametersSharedPtr mActiveTessellationHullGpuProgramParameters;
-        GpuProgramParametersSharedPtr mActiveTessellationDomainGpuProgramParameters;
-        GpuProgramParametersSharedPtr mActiveComputeGpuProgramParameters;
+        GpuProgramParametersPtr mActiveParameters[GPT_COUNT];
 
         // Texture manager
         // A concrete class of this will be created and
@@ -1168,9 +1147,6 @@ namespace Ogre
         size_t mBatchCount;
         size_t mFaceCount;
         size_t mVertexCount;
-
-        /// Saved manual colour blends
-        ColourValue mManualBlendColours[OGRE_MAX_TEXTURE_LAYERS][2];
 
         bool mInvertVertexWinding;
         bool mIsReverseDepthBufferEnabled;
@@ -1213,12 +1189,7 @@ namespace Ogre
         typedef std::list<HardwareOcclusionQuery*> HardwareOcclusionQueryList;
         HardwareOcclusionQueryList mHwOcclusionQueries;
 
-        bool mVertexProgramBound;
-        bool mGeometryProgramBound;
-        bool mFragmentProgramBound;
-        bool mTessellationHullProgramBound;
-        bool mTessellationDomainProgramBound;
-        bool mComputeProgramBound;
+        std::array<bool, GPT_COUNT> mProgramBound;
 
         // Recording user clip planes
         PlaneList mClipPlanes;
@@ -1232,6 +1203,9 @@ namespace Ogre
 
         /// @deprecated only needed for fixed function APIs
         virtual void setClipPlanesImpl(const PlaneList& clipPlanes) {}
+
+        /** Query the real capabilities of the GPU and driver in the RenderSystem*/
+        virtual RenderSystemCapabilities* createRenderSystemCapabilities() const = 0;
 
         /** Initialize the render system from the capabilities*/
         virtual void initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget* primary) = 0;

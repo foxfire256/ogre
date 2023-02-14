@@ -253,17 +253,6 @@ namespace Ogre {
             /// User type mask limit
             USER_TYPE_MASK_LIMIT = FRUSTUM_TYPE_MASK
         };
-        /** Comparator for material map, for sorting materials into render order (e.g. transparent last).
-        */
-        struct materialLess
-        {
-            _OgreExport bool operator()(const Material* x, const Material* y) const;
-        };
-        /// Comparator for sorting lights relative to a point
-        struct lightLess
-        {
-            _OgreExport bool operator()(const Light* a, const Light* b) const;
-        };
 
         /// Describes the stage of rendering when performing complex illumination
         enum IlluminationRenderStage
@@ -736,6 +725,7 @@ namespace Ogre {
             void setShadowTextureCasterMaterial(const MaterialPtr& mat);
             void setShadowTextureReceiverMaterial(const MaterialPtr& mat);
             void setShadowColour(const ColourValue& colour);
+            void updateSplitOptions(RenderQueue* queue);
             void render(RenderQueueGroup* group, QueuedRenderableCollection::OrganisationMode om);
 
             /** Render a group with the added complexity of additive stencil shadows. */
@@ -903,9 +893,9 @@ namespace Ogre {
         /// Internal method for firing the queue end event
         void firePostRenderQueues();
         /// Internal method for firing the queue start event, returns true if queue is to be skipped
-        virtual bool fireRenderQueueStarted(uint8 id, const String& invocation);
+        virtual bool fireRenderQueueStarted(uint8 id, const String& cameraName);
         /// Internal method for firing the queue end event, returns true if queue is to be repeated
-        virtual bool fireRenderQueueEnded(uint8 id, const String& invocation);
+        virtual bool fireRenderQueueEnded(uint8 id, const String& cameraName);
         /// Internal method for firing when rendering a single object.
         void fireRenderSingleObject(Renderable* rend, const Pass* pass, const AutoParamDataSource* source,
             const LightList* pLightList, bool suppressRenderStateChanges);
@@ -972,20 +962,6 @@ namespace Ogre {
         LightClippingInfoMap mLightClippingInfoMap;
         unsigned long mLightClippingInfoMapFrameNumber;
 
-        /** Default sorting routine which sorts lights which cast shadows
-            to the front of a list, sub-sorting by distance.
-
-            Since shadow textures are generated from lights based on the
-            frustum rather than individual objects, a shadow and camera-wise sort is
-            required to pick the best lights near the start of the list. Up to 
-            the number of shadow textures will be generated from this.
-        */
-        struct lightsForShadowTextureLess
-        {
-            _OgreExport bool operator()(const Light* l1, const Light* l2) const;
-        };
-
-
         /** Internal method for locating a list of lights which could be affecting the frustum.
 
             Custom scene managers are encouraged to override this method to make use of their
@@ -1040,14 +1016,6 @@ namespace Ogre {
         /** Render a group in the ordinary way */
         void renderBasicQueueGroupObjects(RenderQueueGroup* pGroup,
             QueuedRenderableCollection::OrganisationMode om);
-
-        /** Update the state of the global render queue splitting based on a shadow
-        option change. */
-        void updateRenderQueueSplitOptions(void);
-        /** Update the state of the render queue group splitting based on a shadow
-        option change. */
-        void updateRenderQueueGroupSplitOptions(RenderQueueGroup* group,
-            bool suppressShadows, bool suppressRenderState);
 
         /// Set up a scissor rectangle from a group of lights
         ClipResult buildAndSetScissor(const LightList& ll, const Camera* cam);
@@ -1356,10 +1324,10 @@ namespace Ogre {
                 If you wish to create a node with a specific name, call the alternative method
                 which takes a name parameter.
         */
-        virtual SceneNode* createSceneNode(void);
+        SceneNode* createSceneNode(void);
 
         /// @overload
-        virtual SceneNode* createSceneNode(const String& name);
+        SceneNode* createSceneNode(const String& name);
 
         /** Destroys a SceneNode.
 

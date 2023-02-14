@@ -11,7 +11,6 @@
 #include "OgreParticleSystemRenderer.h"
 #include "OgreParticleEmitterFactory.h"
 #include "OgreParticleAffectorFactory.h"
-#include "OgreUnifiedHighLevelGpuProgram.h"
 #include "OgreScriptCompiler.h"
 #include "OgreConfigDialog.h"
 #include "OgreFileSystemLayer.h"
@@ -515,11 +514,6 @@ ADD_REPR(ColourValue)
 
 %include "OgreNameGenerator.h"
 %include "OgreController.h"
-%ignore Ogre::RenderSystemCapabilities::setVertexTextureUnitsShared;
-%ignore Ogre::RenderSystemCapabilities::getVertexTextureUnitsShared;
-%rename("$ignore", regextarget=1) ".*ProgramConstantIntCount.*";
-%rename("$ignore", regextarget=1) ".*ProgramConstantBoolCount.*";
-%include "OgreRenderSystemCapabilities.h"
 %ignore Ogre::GpuProgramParameters::hasPassIterationNumber; // deprecated
 %ignore Ogre::GpuProgramParameters::getPassIterationNumberIndex; // deprecated
 %ignore Ogre::GpuProgramParameters::setConstantFromTime;
@@ -557,6 +551,7 @@ SHARED_PTR(StringInterface);
         %include "OgreGpuProgram.h"
             SHARED_PTR(HighLevelGpuProgram);
             %include "OgreHighLevelGpuProgram.h"
+%include "OgreRenderSystemCapabilities.h"
 %ignore Ogre::PreApplyTextureAliasesScriptCompilerEvent;
 %include "OgreScriptCompiler.h"
 %ignore Ogre::TextureUnitState::setCubicTexture;
@@ -569,9 +564,9 @@ SHARED_PTR(StringInterface);
 %ignore Ogre::TextureUnitState::setTextureNameAlias;
 %ignore Ogre::TextureUnitState::getTextureNameAlias;
 %include "OgreTextureUnitState.h"
-%template(ControllerReal) Ogre::Controller<Ogre::Real>;
-%template(ControllerValueRealPtr) Ogre::SharedPtr<Ogre::ControllerValue<Ogre::Real> >;
-%template(ControllerFunctionPtr) Ogre::SharedPtr<Ogre::ControllerFunction<Ogre::Real> >;
+%template(ControllerFloat) Ogre::Controller<float>;
+%template(ControllerValueFloatPtr) Ogre::SharedPtr<Ogre::ControllerValue<float> >;
+%template(ControllerFunctionPtr) Ogre::SharedPtr<Ogre::ControllerFunction<float> >;
 %include "OgreControllerManager.h"
 %include "OgrePredefinedControllers.h"
 SHARED_PTR(Compositor);
@@ -625,8 +620,6 @@ SHARED_PTR(HardwarePixelBuffer);
     %include "OgreTextureManager.h"
     %include "OgreGpuProgramManager.h"
     %include "OgreHighLevelGpuProgramManager.h"
-SHARED_PTR(UnifiedHighLevelGpuProgram);
-%include "OgreUnifiedHighLevelGpuProgram.h"
 // animations
 %ignore Ogre::VertexPoseKeyFrame::getPoseReferenceIterator;
 %include "OgreKeyFrame.h"
@@ -683,8 +676,6 @@ SHARED_PTR(Skeleton);
 SHARED_PTR(Material);
 %template(TechniqueList) std::vector<Ogre::Technique*>;
 %include "OgreMaterial.h"
-%ignore Ogre::RenderSystem::_setTextureUnitFiltering;
-%ignore Ogre::RenderSystem::_setTextureAddressingMode;
 %ignore Ogre::RenderSystem::_setSceneBlending;
 %ignore Ogre::RenderSystem::_setSeparateSceneBlending;
 %ignore Ogre::RenderSystem::_setDepthBufferCheckEnabled;
@@ -694,7 +685,6 @@ SHARED_PTR(Material);
 %ignore Ogre::RenderSystem::_setFog;
 %ignore Ogre::RenderSystem::_setWorldMatrix;
 %ignore Ogre::RenderSystem::_setViewMatrix;
-%ignore Ogre::RenderSystem::_setVertexTexture;
 %ignore Ogre::RenderSystem::_setProjectionMatrix;
 %ignore Ogre::RenderSystem::getRenderTargetIterator;
 %ignore Ogre::RenderSystem::getColourVertexElementType;
