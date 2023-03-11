@@ -68,7 +68,6 @@ mWorldGeometryRenderQueue(RENDER_QUEUE_WORLD_GEOMETRY_1),
 mLastFrameNumber(0),
 mResetIdentityView(false),
 mResetIdentityProj(false),
-mNormaliseNormalsOnScale(true),
 mFlipCullingOnNegativeScale(true),
 mLightsDirtyCounter(0),
 mMovableNameGenerator("Ogre/MO"),
@@ -87,9 +86,6 @@ mGpuParamsDirty((uint16)GPV_ALL)
 {
     if (Root* root = Root::getSingletonPtr())
         _setDestinationRenderSystem(root->getRenderSystem());
-
-    if (mDestRenderSystem && mDestRenderSystem->getCapabilities())
-        mNormaliseNormalsOnScale = mDestRenderSystem->getCapabilities()->hasCapability(RSC_FIXED_FUNCTION);
 
     // Setup default queued renderable visitor
     mActiveQueuedRenderableVisitor = &mDefaultQueuedRenderableVisitor;
@@ -1564,6 +1560,16 @@ void SceneManager::SceneMgrQueuedRenderableVisitor::renderObjects(const QueuedRe
     objs.acceptVisitor(this, om);
     transparentShadowCastersMode = false;
 }
+
+void SceneManager::SceneMgrQueuedRenderableVisitor::renderTransparents(const RenderPriorityGroup* priorityGrp,
+                                                                       QueuedRenderableCollection::OrganisationMode om)
+{
+    // Do unsorted transparents
+    renderObjects(priorityGrp->getTransparentsUnsorted(), om, true, true);
+    // Do transparents (always descending sort)
+    renderObjects(priorityGrp->getTransparents(), QueuedRenderableCollection::OM_SORT_DESCENDING, true, true);
+}
+
 //-----------------------------------------------------------------------
 bool SceneManager::validatePassForRendering(const Pass* pass)
 {
@@ -1662,11 +1668,7 @@ void SceneManager::renderBasicQueueGroupObjects(RenderQueueGroup* pGroup,
 
         // Do solids
         visitor->renderObjects(pPriorityGrp->getSolidsBasic(), om, true, true);
-        // Do unsorted transparents
-        visitor->renderObjects(pPriorityGrp->getTransparentsUnsorted(), om, true, true);
-        // Do transparents (always descending)
-        visitor->renderObjects(pPriorityGrp->getTransparents(), QueuedRenderableCollection::OM_SORT_DESCENDING, true,
-                               true);
+        visitor->renderTransparents(pPriorityGrp, om);
     }// for each priority
 }
 //-----------------------------------------------------------------------
@@ -1895,15 +1897,6 @@ void SceneManager::renderSingleObject(Renderable* rend, const Pass* pass,
     mAutoParamDataSource->setCurrentRenderable(rend);
 
     setWorldTransform(rend);
-
-    // Sort out normalisation
-    // Assume first world matrix representative - shaders that use multiple
-    // matrices should control renormalisation themselves
-    if ((pass->getNormaliseNormals() || mNormaliseNormalsOnScale) &&
-        mAutoParamDataSource->getWorldMatrix().linear().hasScale())
-        mDestRenderSystem->setNormaliseNormals(true);
-    else
-        mDestRenderSystem->setNormaliseNormals(false);
 
     // Sort out negative scaling
     // Assume first world matrix representative
@@ -3038,7 +3031,7 @@ SceneManager::RenderContext* SceneManager::_pauseRendering()
     context->camera = mCameraInProgress;
     context->activeChain = _getActiveCompositorChain();
 
-    context->rsContext = mDestRenderSystem->_pauseFrame();
+    mDestRenderSystem->_endFrame();
     mRenderQueue = 0;
     return context;
 }
@@ -3068,7 +3061,7 @@ void SceneManager::_resumeRendering(SceneManager::RenderContext* context)
         mDestRenderSystem->setClipPlanes(camera->isWindowSet() ? camera->getWindowPlanes() : PlaneList());
     }
     mCameraInProgress = context->camera;
-    mDestRenderSystem->_resumeFrame(context->rsContext);
+    mDestRenderSystem->_beginFrame();
     
     mDestRenderSystem->_setTextureProjectionRelativeTo(mCameraRelativeRendering, mCameraInProgress->getDerivedPosition());
     delete context;

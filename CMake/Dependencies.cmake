@@ -46,7 +46,16 @@ endif()
 # if we build our own deps, do it static as it generally eases distribution
 set(OGREDEPS_SHARED FALSE)
 
-set(BUILD_COMMAND_OPTS --target install --config ${CMAKE_BUILD_TYPE})
+# get available processor cores
+include(ProcessorCount)
+ProcessorCount(NPROC)
+
+# can not get processor cores, fallback to default value
+if(NPROC EQUAL 0)
+    set(NPROC 2)
+endif()
+
+set(BUILD_COMMAND_OPTS --target install -j ${NPROC} --config ${CMAKE_BUILD_TYPE})
 
 set(BUILD_COMMAND_COMMON ${CMAKE_COMMAND}
   -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
@@ -72,16 +81,16 @@ set(CMAKE_FRAMEWORK_PATH ${CMAKE_FRAMEWORK_PATH} ${OGRE_DEP_SEARCH_PATH})
 if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
     message(STATUS "Building pugixml")
     file(DOWNLOAD
-        https://github.com/zeux/pugixml/releases/download/v1.12/pugixml-1.12.tar.gz
-        ${PROJECT_BINARY_DIR}/pugixml-1.12.tar.gz)
+        https://github.com/zeux/pugixml/releases/download/v1.13/pugixml-1.13.tar.gz
+        ${PROJECT_BINARY_DIR}/pugixml-1.13.tar.gz)
     execute_process(COMMAND ${CMAKE_COMMAND}
-        -E tar xf pugixml-1.12.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+        -E tar xf pugixml-1.13.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
     execute_process(COMMAND ${BUILD_COMMAND_COMMON}
         -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE # this will be linked into a shared lib
-        ${PROJECT_BINARY_DIR}/pugixml-1.12
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/pugixml-1.12)
+        ${PROJECT_BINARY_DIR}/pugixml-1.13
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/pugixml-1.13)
     execute_process(COMMAND ${CMAKE_COMMAND}
-        --build ${PROJECT_BINARY_DIR}/pugixml-1.12 ${BUILD_COMMAND_OPTS})
+        --build ${PROJECT_BINARY_DIR}/pugixml-1.13 ${BUILD_COMMAND_OPTS})
 
     #find_package(Freetype)
     if (NOT FREETYPE_FOUND)
@@ -113,16 +122,16 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
     if(MSVC OR MINGW OR SKBUILD) # other platforms dont need this
         message(STATUS "Building SDL2")
         file(DOWNLOAD
-            https://libsdl.org/release/SDL2-2.24.1.tar.gz
-            ${PROJECT_BINARY_DIR}/SDL2-2.24.1.tar.gz)
+            https://libsdl.org/release/SDL2-2.26.4.tar.gz
+            ${PROJECT_BINARY_DIR}/SDL2-2.26.4.tar.gz)
         execute_process(COMMAND ${CMAKE_COMMAND} 
-            -E tar xf SDL2-2.24.1.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+            -E tar xf SDL2-2.26.4.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
         execute_process(COMMAND ${CMAKE_COMMAND}
             -E make_directory ${PROJECT_BINARY_DIR}/SDL2-build)
         execute_process(COMMAND ${BUILD_COMMAND_COMMON}
             -DSDL_STATIC=FALSE
             -DCMAKE_INSTALL_LIBDIR=lib
-            ${PROJECT_BINARY_DIR}/SDL2-2.24.1
+            ${PROJECT_BINARY_DIR}/SDL2-2.26.4
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/SDL2-build)
         execute_process(COMMAND ${CMAKE_COMMAND}
             --build ${PROJECT_BINARY_DIR}/SDL2-build ${BUILD_COMMAND_OPTS})
@@ -164,10 +173,10 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
 
     message(STATUS "Building Bullet")
     file(DOWNLOAD
-        https://github.com/bulletphysics/bullet3/archive/refs/tags/3.24.tar.gz
-        ${PROJECT_BINARY_DIR}/3.24.tar.gz)
+        https://github.com/bulletphysics/bullet3/archive/refs/tags/3.25.tar.gz
+        ${PROJECT_BINARY_DIR}/3.25.tar.gz)
     execute_process(COMMAND ${CMAKE_COMMAND}
-        -E tar xf 3.24.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+        -E tar xf 3.25.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
     execute_process(COMMAND ${BUILD_COMMAND_COMMON}
         -DBUILD_SHARED_LIBS=OFF
         -DINSTALL_LIBS=ON
@@ -183,10 +192,10 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
         -DBUILD_UNIT_TESTS=OFF
         -DCMAKE_RELWITHDEBINFO_POSTFIX= # fixes FindBullet on MSVC
         -DBUILD_CLSOCKET=OFF
-        ${PROJECT_BINARY_DIR}/bullet3-3.24
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/bullet3-3.24)
+        ${PROJECT_BINARY_DIR}/bullet3-3.25
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/bullet3-3.25)
     execute_process(COMMAND ${CMAKE_COMMAND}
-        --build ${PROJECT_BINARY_DIR}/bullet3-3.24 ${BUILD_COMMAND_OPTS})
+        --build ${PROJECT_BINARY_DIR}/bullet3-3.25 ${BUILD_COMMAND_OPTS})
     set(BULLET_ROOT ${OGREDEPS_PATH})
 endif()
 

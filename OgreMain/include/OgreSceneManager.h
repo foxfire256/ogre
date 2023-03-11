@@ -92,6 +92,7 @@ namespace Ogre {
     struct MovableObjectLodChangedEvent;
     struct EntityMeshLodChangedEvent;
     struct EntityMaterialLodChangedEvent;
+    class ShadowCasterSceneQueryListener;
 
     /** Structure collecting together information about the visible objects
     that have been discovered in a scene.
@@ -395,6 +396,8 @@ namespace Ogre {
             void renderObjects(const QueuedRenderableCollection& objs, QueuedRenderableCollection::OrganisationMode om,
                                bool lightScissoringClipping, bool doLightIteration,
                                const LightList* manualLightList = 0, bool transparentShadowCastersMode = false);
+
+            void renderTransparents(const RenderPriorityGroup* priorityGrp, QueuedRenderableCollection::OrganisationMode om);
         };
         /// Allow visitor helper to access protected methods
         friend class SceneMgrQueuedRenderableVisitor;
@@ -549,7 +552,6 @@ namespace Ogre {
         bool mResetIdentityView;
         bool mResetIdentityProj;
 
-        bool mNormaliseNormalsOnScale;
         bool mFlipCullingOnNegativeScale;
         CullingMode mPassCullingMode;
 
@@ -797,38 +799,6 @@ namespace Ogre {
 
             typedef std::vector<ShadowTextureListener*> ListenerList;
             ListenerList mListeners;
-
-            /// Inner class to use as callback for shadow caster scene query
-            class _OgreExport ShadowCasterSceneQueryListener : public SceneQueryListener, public SceneMgtAlloc
-            {
-            protected:
-                SceneManager* mSceneMgr;
-                ShadowCasterList* mCasterList;
-                bool mIsLightInFrustum;
-                const PlaneBoundedVolumeList* mLightClipVolumeList;
-                const Camera* mCamera;
-                const Light* mLight;
-                Real mFarDistSquared;
-            public:
-                ShadowCasterSceneQueryListener(SceneManager* sm) : mSceneMgr(sm),
-                    mCasterList(0), mIsLightInFrustum(false), mLightClipVolumeList(0),
-                    mCamera(0), mFarDistSquared(0) {}
-                // Prepare the listener for use with a set of parameters
-                void prepare(bool lightInFrustum, const PlaneBoundedVolumeList* lightClipVolumes,
-                             const Light* light, const Camera* cam, ShadowCasterList* casterList,
-                             Real farDistSquared)
-                {
-                    mCasterList = casterList;
-                    mIsLightInFrustum = lightInFrustum;
-                    mLightClipVolumeList = lightClipVolumes;
-                    mCamera = cam;
-                    mLight = light;
-                    mFarDistSquared = farDistSquared;
-                }
-                bool queryResult(MovableObject* object) override;
-                bool queryResult(SceneQuery::WorldFragment* fragment) override;
-            };
-
             std::unique_ptr<ShadowCasterSceneQueryListener> mShadowCasterQueryListener;
 
             /** Internal method for locating a list of shadow casters which
@@ -996,7 +966,6 @@ namespace Ogre {
             Viewport* viewport;
             Camera* camera;
             CompositorChain* activeChain;
-            RenderSystem::RenderSystemContext* rsContext;
         };
 
         /** Pause rendering of the frame. This has to be called when inside a renderScene call
@@ -3233,12 +3202,6 @@ namespace Ogre {
             whether they are being manually handled.
         */
         bool getFindVisibleObjects(void) { return mFindVisibleObjects; }
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED void setNormaliseNormalsOnScale(bool n) { mNormaliseNormalsOnScale = n; }
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED bool getNormaliseNormalsOnScale() const { return mNormaliseNormalsOnScale; }
 
         /** Set whether to automatically flip the culling mode on objects whenever they
             are negatively scaled.

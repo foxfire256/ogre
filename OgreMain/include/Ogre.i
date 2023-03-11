@@ -678,9 +678,6 @@ SHARED_PTR(Material);
 %include "OgreMaterial.h"
 %ignore Ogre::RenderSystem::_setSceneBlending;
 %ignore Ogre::RenderSystem::_setSeparateSceneBlending;
-%ignore Ogre::RenderSystem::_setDepthBufferCheckEnabled;
-%ignore Ogre::RenderSystem::_setDepthBufferWriteEnabled;
-%ignore Ogre::RenderSystem::_setDepthBufferFunction;
 %ignore Ogre::RenderSystem::_setColourBufferWriteEnabled;
 %ignore Ogre::RenderSystem::_setFog;
 %ignore Ogre::RenderSystem::_setWorldMatrix;
@@ -690,7 +687,6 @@ SHARED_PTR(Material);
 %ignore Ogre::RenderSystem::getColourVertexElementType;
 %ignore Ogre::RenderSystem::setStencilCheckEnabled;
 %ignore Ogre::RenderSystem::setStencilBufferParams;
-%ignore Ogre::RenderSystem::getDisplayMonitorCount;
 %include "OgreRenderSystem.h"
 %include "OgreCompositorManager.h"
 #ifdef SWIGJAVA
@@ -724,7 +720,6 @@ SHARED_PTR(Material);
         %ignore Ogre::RibbonTrail::getNodeIterator;
         %include "OgreRibbonTrail.h"
     %ignore Ogre::BillboardSet::setTextureCoords(const FloatRect*, uint16);
-    %ignore Ogre::BillboardSet::getTextureCoords(uint16*);
     %include "OgreBillboardSet.h"
     %include "OgreMovablePlane.h"
     %ignore Ogre::Light::setPosition;
@@ -751,7 +746,6 @@ SHARED_PTR(Material);
         %include "OgreShadowCameraSetupPSSM.h"
             %template(SplitPointList) std::vector<Ogre::Real>;
     %ignore Ogre::Frustum::getFrustumExtents(Real&, Real& ,Real& ,Real&) const;
-    %ignore Ogre::Frustum::getProjectionMatrixRS;
     %include "OgreFrustum.h"
         %ignore Ogre::Camera::setPosition;
         %ignore Ogre::Camera::getPosition;
@@ -883,7 +877,6 @@ SHARED_PTR(Mesh);
 %ignore Ogre::Root::createSceneManager(uint16);
 %ignore Ogre::Root::createSceneManager(uint16, const String&);
 %ignore Ogre::Root::getMovableObjectFactoryIterator;
-%ignore Ogre::Root::getDisplayMonitorCount;
 %include "OgreRoot.h"
 // dont wrap: platform specific
 // %include "OgreWindowEventUtilities.h"
