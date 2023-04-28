@@ -80,7 +80,7 @@ Sample_ShaderSystem::~Sample_ShaderSystem()
 
 void Sample_ShaderSystem::_shutdown()
 {
-    mShaderGenerator->getRenderState(MSN_SHADERGEN)->reset();
+    mShaderGenerator->getRenderState(MSN_SHADERGEN)->resetToBuiltinSubRenderStates();
     destroyInstancedViewports();
     SdkSample::_shutdown();
 }
@@ -338,11 +338,6 @@ void Sample_ShaderSystem::setupContent()
     createDirectionalLight();
     createPointLight();
     createSpotLight();
-
-    RenderState* schemRenderState = mShaderGenerator->getRenderState(MSN_SHADERGEN);
-
-    // Take responsibility for updating the light count manually.
-    schemRenderState->setLightCountAutoUpdate(false);
     
     setupUI();
 
@@ -493,7 +488,7 @@ void Sample_ShaderSystem::setPerPixelFogEnable( bool enable )
         RenderState* schemRenderState = mShaderGenerator->getRenderState(MSN_SHADERGEN);
         // Search for the fog sub state.
         auto fogSubRenderState = schemRenderState->getSubRenderState(SRS_FOG);
-        
+
         // Select the desired fog calculation mode.
         fogSubRenderState->setParameter("calc_mode", mPerPixelFogEnable ? "per_pixel" : "per_vertex");
 
@@ -560,7 +555,7 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
                 MSN_SHADERGEN, *curMaterial);
 
             // Remove all sub render states.
-            renderState->reset();
+            renderState->resetToBuiltinSubRenderStates();
 
 
 #ifdef RTSHADER_SYSTEM_BUILD_CORE_SHADERS
@@ -831,33 +826,7 @@ void Sample_ShaderSystem::updateLightState(const String& lightName, bool visible
         else
         {
             mSceneMgr->getLight(lightName)->setVisible(visible);
-        }   
-
-        RenderState* schemRenderState = mShaderGenerator->getRenderState(MSN_SHADERGEN);
-        
-        Vector3i lightCount(0, 0, 0);
-
-        // Update point light count.
-        if (mSceneMgr->getLight(POINT_LIGHT_NAME)->isVisible())
-        {
-            lightCount[0] = 1;
         }
-
-        // Update directional light count.
-        if (mSceneMgr->getLight(DIRECTIONAL_LIGHT_NAME)->isVisible())
-        {
-            lightCount[1] = 1;
-        }
-
-        // Update spot light count.
-        if (mSceneMgr->getLight(SPOT_LIGHT_NAME)->isVisible())
-        {
-            lightCount[2] = 1;
-        }
-
-        // Update the scheme light count.
-        schemRenderState->setLightCount(lightCount);
-        
 
         // Invalidate the scheme in order to re-generate all shaders based technique related to this scheme.
         mShaderGenerator->invalidateScheme(Ogre::MSN_SHADERGEN);
