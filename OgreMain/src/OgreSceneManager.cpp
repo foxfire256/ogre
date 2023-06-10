@@ -71,12 +71,12 @@ mResetIdentityProj(false),
 mFlipCullingOnNegativeScale(true),
 mLightsDirtyCounter(0),
 mMovableNameGenerator("Ogre/MO"),
-mShadowRenderer(this),
 mDisplayNodes(false),
 mShowBoundingBoxes(false),
 mActiveCompositorChain(0),
 mLateMaterialResolving(false),
 mIlluminationStage(IRS_NONE),
+mShadowRenderer(this),
 mLightClippingInfoMapFrameNumber(999),
 mVisibilityMask(0xFFFFFFFF),
 mFindVisibleObjects(true),
@@ -635,8 +635,7 @@ SceneNode* SceneManager::getSceneNode(const String& name, bool throwExceptionIfN
 }
 
 //-----------------------------------------------------------------------
-const Pass* SceneManager::_setPass(const Pass* pass, bool evenIfSuppressed, 
-                                   bool shadowDerivation)
+const Pass* SceneManager::_setPass(const Pass* pass, bool shadowDerivation)
 {
     //If using late material resolving, swap now.
     if (isLateMaterialResolving()) 
@@ -653,14 +652,9 @@ const Pass* SceneManager::_setPass(const Pass* pass, bool evenIfSuppressed,
         //Should we warn or throw an exception if an illegal state was achieved?
     }
 
-    if (mIlluminationStage == IRS_RENDER_TO_TEXTURE && shadowDerivation)
+    if (shadowDerivation)
     {
-        // Derive a special shadow caster pass from this one
-        pass = mShadowRenderer.deriveShadowCasterPass(pass);
-    }
-    else if (mIlluminationStage == IRS_RENDER_RECEIVER_PASS && shadowDerivation)
-    {
-        pass = mShadowRenderer.deriveShadowReceiverPass(pass);
+        pass = mShadowRenderer.deriveTextureShadowPass(pass);
     }
 
     // Tell params about current pass
@@ -1344,9 +1338,9 @@ void SceneManager::SceneMgrQueuedRenderableVisitor::visit(const Pass* p, Rendera
     if (!targetSceneMgr->validatePassForRendering(p))
         return;
 
-    OgreProfileBeginGPUEvent(p->getParent()->getParent()->getName());
     // Set pass, store the actual one used
     mUsedPass = targetSceneMgr->_setPass(p);
+    OgreProfileBeginGPUEvent(mUsedPass->getParent()->getParent()->getName());
 
     SubMesh* lastsm = 0;
     RenderableList instances;
@@ -1396,7 +1390,7 @@ void SceneManager::SceneMgrQueuedRenderableVisitor::visit(const Pass* p, Rendera
     if (!instances.empty())
         targetSceneMgr->renderInstancedObject(instances, mUsedPass, scissoring, autoLights, manualLightList);
 
-    OgreProfileEndGPUEvent(p->getParent()->getParent()->getName());
+    OgreProfileEndGPUEvent(mUsedPass->getParent()->getParent()->getName());
 }
 //-----------------------------------------------------------------------
 void SceneManager::SceneMgrQueuedRenderableVisitor::visit(RenderablePass* rp)
@@ -1605,11 +1599,11 @@ void SceneManager::issueRenderWithLights(Renderable* rend, const Pass* pass,
 //-----------------------------------------------------------------------
 static void injectGlobalInstancingDeclaration(RenderOperation& ro, const RenderSystem* rs)
 {
-    if (!ro.useGlobalInstancingVertexBufferIsAvailable)
+    if (!ro.useGlobalInstancing)
         return;
 
     // Create variables related to instancing.
-    VertexDeclaration* instanceDecl = rs->getGlobalInstanceVertexBufferVertexDeclaration();
+    VertexDeclaration* instanceDecl = rs->getGlobalInstanceVertexDeclaration();
 
     if(!instanceDecl || instanceDecl->getElements().empty())
         return;
@@ -1628,7 +1622,7 @@ static void injectGlobalInstancingDeclaration(RenderOperation& ro, const RenderS
     }
     ro.vertexData->vertexBufferBinding->setBinding(instancingSrc, rs->getGlobalInstanceVertexBuffer());
 
-    ro.numberOfInstances *= rs->getGlobalNumberOfInstances();
+    ro.numberOfInstances *= rs->getGlobalInstanceCount();
 }
 
 static PolygonMode derivePolygonMode(const Pass* pass, const Renderable* rend, const Camera* cam)
@@ -2489,6 +2483,33 @@ void SceneManager::_notifyLightsDirty(void)
     ++mLightsDirtyCounter;
 }
 //---------------------------------------------------------------------
+void SceneManager::updateCachedLightInfos(const Camera* camera)
+{
+    // Update lights affecting frustum if changed
+    if (mCachedLightInfos != mTestLightInfos)
+    {
+        mLightsAffectingFrustum.resize(mTestLightInfos.size());
+        LightInfoList::const_iterator i;
+        LightList::iterator j = mLightsAffectingFrustum.begin();
+        for (i = mTestLightInfos.begin(); i != mTestLightInfos.end(); ++i, ++j)
+        {
+            *j = i->light;
+            // add cam distance for sorting if texture shadows
+            if (isShadowTechniqueTextureBased())
+            {
+                (*j)->_calcTempSquareDist(camera->getDerivedPosition());
+            }
+        }
+
+        mShadowRenderer.sortLightsAffectingFrustum(mLightsAffectingFrustum);
+        // Use swap instead of copy operator for efficiently
+        mCachedLightInfos.swap(mTestLightInfos);
+
+        // notify light dirty, so all movable objects will re-populate
+        // their light list next time
+        _notifyLightsDirty();
+    }
+}
 void SceneManager::findLightsAffectingFrustum(const Camera* camera)
 {
     // Basic iteration for this SM
@@ -2542,37 +2563,19 @@ void SceneManager::findLightsAffectingFrustum(const Camera* camera)
         }
     } // release lock on lights collection
 
-    // Update lights affecting frustum if changed
-    if (mCachedLightInfos != mTestLightInfos)
-    {
-        mLightsAffectingFrustum.resize(mTestLightInfos.size());
-        LightInfoList::const_iterator i;
-        LightList::iterator j = mLightsAffectingFrustum.begin();
-        for (i = mTestLightInfos.begin(); i != mTestLightInfos.end(); ++i, ++j)
-        {
-            *j = i->light;
-            // add cam distance for sorting if texture shadows
-            if (isShadowTechniqueTextureBased())
-            {
-                (*j)->_calcTempSquareDist(camera->getDerivedPosition());
-            }
-        }
-
-        mShadowRenderer.sortLightsAffectingFrustum(mLightsAffectingFrustum);
-        // Use swap instead of copy operator for efficiently
-        mCachedLightInfos.swap(mTestLightInfos);
-
-        // notify light dirty, so all movable objects will re-populate
-        // their light list next time
-        _notifyLightsDirty();
-    }
-
+    updateCachedLightInfos(camera);
 }
 void SceneManager::initShadowVolumeMaterials()
 {
     mShadowRenderer.initShadowVolumeMaterials();
 }
 //---------------------------------------------------------------------
+static void buildScissor(const Light* light, const Camera* cam, RealRect& rect)
+{
+    // Project the sphere onto the camera
+    Sphere sphere(light->getDerivedPosition(), light->getAttenuationRange());
+    cam->Frustum::projectSphere(sphere, &(rect.left), &(rect.top), &(rect.right), &(rect.bottom));
+}
 const RealRect& SceneManager::getLightScissorRect(Light* l, const Camera* cam)
 {
     checkCachedLightClippingInfo();
@@ -2639,13 +2642,6 @@ ClipResult SceneManager::buildAndSetScissor(const LightList& ll, const Camera* c
     else
         return CLIPPED_NONE;
 
-}
-//---------------------------------------------------------------------
-void SceneManager::buildScissor(const Light* light, const Camera* cam, RealRect& rect)
-{
-    // Project the sphere onto the camera
-    Sphere sphere(light->getDerivedPosition(), light->getAttenuationRange());
-    cam->Frustum::projectSphere(sphere, &(rect.left), &(rect.top), &(rect.right), &(rect.bottom));
 }
 //---------------------------------------------------------------------
 void SceneManager::resetScissor()
@@ -2858,6 +2854,16 @@ void SceneManager::destroyShadowTextures(void)
 {
     mShadowRenderer.destroyShadowTextures();
 }
+const std::vector<Camera*>& SceneManager::getShadowTextureCameras()
+{
+    return mShadowRenderer.mShadowTextureCameras;
+}
+
+bool SceneManager::isShadowTextureConfigDirty() const
+{
+    return mShadowRenderer.mShadowTextureConfigDirty;
+}
+
 void SceneManager::prepareShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList)
 {
         // Set the illumination stage, prevents recursive calls
@@ -3214,7 +3220,7 @@ MovableObject* SceneManager::createMovableObject(const String& name,
     const String& typeName, const NameValuePairList* params)
 {
     // Nasty hack to make generalised Camera functions work without breaking add-on SMs
-    if (typeName == "Camera")
+    if (typeName == MOT_CAMERA)
     {
         return createCamera(name);
     }
@@ -3250,7 +3256,7 @@ MovableObject* SceneManager::createMovableObject(const String& typeName, const N
 void SceneManager::destroyMovableObject(const String& name, const String& typeName)
 {
     // Nasty hack to make generalised Camera functions work without breaking add-on SMs
-    if (typeName == "Camera")
+    if (typeName == MOT_CAMERA)
     {
         destroyCamera(name);
         return;
@@ -3274,7 +3280,7 @@ void SceneManager::destroyMovableObject(const String& name, const String& typeNa
 void SceneManager::destroyAllMovableObjectsByType(const String& typeName)
 {
     // Nasty hack to make generalised Camera functions work without breaking add-on SMs
-    if (typeName == "Camera")
+    if (typeName == MOT_CAMERA)
     {
         destroyAllCameras();
         return;
@@ -3328,7 +3334,7 @@ void SceneManager::destroyAllMovableObjects(void)
 MovableObject* SceneManager::getMovableObject(const String& name, const String& typeName) const
 {
     // Nasty hack to make generalised Camera functions work without breaking add-on SMs
-    if (typeName == "Camera")
+    if (typeName == MOT_CAMERA)
     {
         return getCamera(name);
     }
@@ -3352,7 +3358,7 @@ MovableObject* SceneManager::getMovableObject(const String& name, const String& 
 bool SceneManager::hasMovableObject(const String& name, const String& typeName) const
 {
     // Nasty hack to make generalised Camera functions work without breaking add-on SMs
-    if (typeName == "Camera")
+    if (typeName == MOT_CAMERA)
     {
         return hasCamera(name);
     }
@@ -3434,7 +3440,7 @@ void SceneManager::_injectRenderWithPass(Pass *pass, Renderable *rend, bool shad
     bool doLightIteration, const LightList* manualLightList)
 {
     // render something as if it came from the current queue
-    const Pass *usedPass = _setPass(pass, false, shadowDerivation);
+    const Pass *usedPass = _setPass(pass, shadowDerivation);
     renderSingleObject(rend, usedPass, false, doLightIteration, manualLightList);
 }
 //---------------------------------------------------------------------
