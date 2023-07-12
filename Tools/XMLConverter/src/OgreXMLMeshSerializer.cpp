@@ -92,10 +92,12 @@ namespace Ogre {
         if (elem)
             readBoneAssignments(elem);
 
+#if !OGRE_NO_MESHLOD
         //Lod
         elem = rootElem.child("levelofdetail");
         if (elem)
             readLodInfo(elem);
+#endif
 
         // submesh names
         elem = rootElem.child("submeshnames");
@@ -1456,6 +1458,7 @@ namespace Ogre {
             }
         }
     }
+#if !OGRE_NO_MESHLOD
     //---------------------------------------------------------------------
     void XMLMeshSerializer::readLodInfo(pugi::xml_node&  lodNode)
     {
@@ -1625,6 +1628,7 @@ namespace Ogre {
         }
         
     }
+#endif
     //-----------------------------------------------------------------------------
     void XMLMeshSerializer::readExtremes(pugi::xml_node& extremesNode, Mesh *m)
     {
@@ -1693,19 +1697,19 @@ namespace Ogre {
             for (pugi::xml_node poseOffsetNode : poseNode.children("poseoffset"))
             {
                 uint index = StringConverter::parseUnsignedInt(poseOffsetNode.attribute("index").value());
-                Vector3 offset;
-                offset.x = StringConverter::parseReal(poseOffsetNode.attribute("x").value());
-                offset.y = StringConverter::parseReal(poseOffsetNode.attribute("y").value());
-                offset.z = StringConverter::parseReal(poseOffsetNode.attribute("z").value());
+                Vector3f offset;
+                offset[0] = StringConverter::parseReal(poseOffsetNode.attribute("x").value());
+                offset[1] = StringConverter::parseReal(poseOffsetNode.attribute("y").value());
+                offset[2] = StringConverter::parseReal(poseOffsetNode.attribute("z").value());
 
                 if (poseOffsetNode.attribute("nx").value() &&
                     poseOffsetNode.attribute("ny").value() &&
                     poseOffsetNode.attribute("nz").value())
                 {
-                    Vector3 normal;
-                    normal.x = StringConverter::parseReal(poseOffsetNode.attribute("nx").value());
-                    normal.y = StringConverter::parseReal(poseOffsetNode.attribute("ny").value());
-                    normal.z = StringConverter::parseReal(poseOffsetNode.attribute("nz").value());
+                    Vector3f normal;
+                    normal[0] = StringConverter::parseReal(poseOffsetNode.attribute("nx").value());
+                    normal[1] = StringConverter::parseReal(poseOffsetNode.attribute("ny").value());
+                    normal[2] = StringConverter::parseReal(poseOffsetNode.attribute("nz").value());
                     pose->addVertex(index, offset, normal);
                     
                 }
@@ -1969,17 +1973,17 @@ namespace Ogre {
                 poseOffsetElement.append_attribute("index") =
                     StringConverter::toString(vit.first).c_str();
 
-                const Vector3& offset = vit.second;
-                poseOffsetElement.append_attribute("x") = StringConverter::toString(offset.x).c_str();
-                poseOffsetElement.append_attribute("y") = StringConverter::toString(offset.y).c_str();
-                poseOffsetElement.append_attribute("z") = StringConverter::toString(offset.z).c_str();
+                const Vector3f& offset = vit.second;
+                poseOffsetElement.append_attribute("x") = StringConverter::toString(offset[0]).c_str();
+                poseOffsetElement.append_attribute("y") = StringConverter::toString(offset[1]).c_str();
+                poseOffsetElement.append_attribute("z") = StringConverter::toString(offset[2]).c_str();
                 
                 if (includesNormals)
                 {
-                    const Vector3& normal = nit->second;
-                    poseOffsetElement.append_attribute("nx") = StringConverter::toString(normal.x).c_str();
-                    poseOffsetElement.append_attribute("ny") = StringConverter::toString(normal.y).c_str();
-                    poseOffsetElement.append_attribute("nz") = StringConverter::toString(normal.z).c_str();
+                    const Vector3f& normal = nit->second;
+                    poseOffsetElement.append_attribute("nx") = StringConverter::toString(normal[0]).c_str();
+                    poseOffsetElement.append_attribute("ny") = StringConverter::toString(normal[1]).c_str();
+                    poseOffsetElement.append_attribute("nz") = StringConverter::toString(normal[2]).c_str();
                     nit++;
                 }
                 

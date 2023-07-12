@@ -10,12 +10,16 @@ material RTSS/OffsetMapping
            // Base diffuse texture map 
            texture_unit 
            { 
-              texture rockwall.tga
+              texture Bricks076C_diffspec.dds
            }
 
-           rtshader_system
+           texture_unit
            {
-               lighting_stage normal_map rockwall_NH.tga parallax
+               texture Bricks076C_normheight.dds
+               rtshader_system
+               {
+                  normal_map parallax
+               }
            }
        }
    }

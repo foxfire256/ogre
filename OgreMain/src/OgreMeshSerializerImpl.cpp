@@ -56,7 +56,7 @@ namespace Ogre {
     }
     //---------------------------------------------------------------------
     void MeshSerializerImpl::exportMesh(const Mesh* pMesh, 
-        const DataStreamPtr stream, Endian endianMode)
+        const DataStreamPtr& stream, Endian endianMode)
     {
         LogManager::getSingleton().logMessage("MeshSerializer writing mesh data to stream " + stream->getName() + "...");
 
@@ -2300,7 +2300,7 @@ namespace Ogre {
                 case M_POSE_VERTEX:
                     // create vertex offset
                     uint32 vertIndex;
-                    Vector3 offset, normal;
+                    Vector3f offset, normal;
                     // unsigned long vertexIndex
                     readInts(stream, &vertIndex, 1);
                     // float xoffset, yoffset, zoffset
@@ -2901,7 +2901,7 @@ namespace Ogre {
             if (manual)
             {
                 // Read detail stream
-                uint16  streamID = readChunk(stream);
+                streamID = readChunk(stream);
                 if (streamID != M_MESH_LOD_MANUAL)
                 {
                     OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND,
@@ -2916,7 +2916,7 @@ namespace Ogre {
                 pushInnerChunk(stream);
                 for (uint16 n = 0; n < numSubs; ++n)
                 {
-                    unsigned long streamID = readChunk(stream);
+                    streamID = readChunk(stream);
                     if (streamID != M_MESH_LOD_GENERATED)
                     {
                         OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND,
@@ -3100,7 +3100,7 @@ namespace Ogre {
                 case M_POSE_VERTEX:
                     // create vertex offset
                     uint32 vertIndex;
-                    Vector3 offset;
+                    Vector3f offset;
                     // unsigned long vertexIndex
                     readInts(stream, &vertIndex, 1);
                     // float xoffset, yoffset, zoffset
@@ -3292,7 +3292,7 @@ namespace Ogre {
             if (manual)
             {
                 // Read detail stream
-                uint16  streamID = readChunk(stream);
+                streamID = readChunk(stream);
                 if (streamID != M_MESH_LOD_MANUAL)
                 {
                     OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND,
@@ -3307,7 +3307,7 @@ namespace Ogre {
                 pushInnerChunk(stream);
                 for (uint16 n = 0; n < numSubs; ++n)
                 {
-                    unsigned long streamID = readChunk(stream);
+                    streamID = readChunk(stream);
                     if (streamID != M_MESH_LOD_GENERATED)
                     {
                         OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND,

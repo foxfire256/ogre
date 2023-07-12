@@ -27,28 +27,36 @@
  * -----------------------------------------------------------------------------
  */
 
-#ifndef _LodOutputProviderMesh_H__
-#define _LodOutputProviderMesh_H__
+#ifndef _LodOutputProviderBuffer_H__
+#define _LodOutputProviderBuffer_H__
 
 #include "OgreLodPrerequisites.h"
 #include "OgreLodOutputProvider.h"
-#include "OgreSharedPtr.h"
+#include "OgreLodBuffer.h"
 #include "OgreHeaderPrefix.h"
 
 namespace Ogre
 {
 
-class _OgreLodExport LodOutputProviderMesh :
+class LodOutputProviderBuffer :
     public LodOutputProvider
 {
 public:
-    LodOutputProviderMesh(MeshPtr mesh) : mMesh(mesh) {}
+    LodOutputProviderBuffer(MeshPtr mesh, bool useCompression = false)
+    : LodOutputProvider(useCompression)
+    , mMesh(mesh)
+    {}
     void prepare(LodData* data) override;
-    void finalize(LodData* data) override {}
-    void bakeManualLodLevel(LodData* data, String& manualMeshName, int lodIndex) override;
-    void bakeLodLevel(LodData* data, int lodIndex) override;
+    void inject() override;
 protected:
     MeshPtr mMesh;
+    LodOutputBuffer mBuffer;
+
+    size_t getSubMeshCount() override;
+
+    HardwareIndexBufferPtr createIndexBufferImpl(size_t indexCount) override;
+
+    void createSubMeshLodIndexData(size_t subMeshIndex, int lodIndex, const HardwareIndexBufferPtr & indexBuffer, size_t indexStart, size_t indexCount) override;
 };
 
 }

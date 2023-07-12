@@ -27,27 +27,48 @@
  * -----------------------------------------------------------------------------
  */
 
-#ifndef _LodOutputProviderCompressedBuffer_H__
-#define _LodOutputProviderCompressedBuffer_H__
+#ifndef _LodInputProviderMesh_H__
+#define _LodInputProviderMesh_H__
 
 #include "OgreLodPrerequisites.h"
-#include "OgreLodOutputProviderCompressedMesh.h"
+#include "OgreLodInputProvider.h"
+#include "OgreLodData.h"
+#include "OgreSharedPtr.h"
+#include "OgreLogManager.h"
+#include "OgreRenderOperation.h"
+#include "OgreHeaderPrefix.h"
+
+#include <sstream>
 
 namespace Ogre
 {
 
-class _OgreLodExport LodOutputProviderCompressedBuffer :
-    public LodOutputProviderCompressedMesh
+class LodInputProviderMesh :
+    public LodInputProvider
 {
 public:
-    LodOutputProviderCompressedBuffer(MeshPtr mesh);
+    LodInputProviderMesh(MeshPtr mesh);
 
 protected:
-    void bakeFirstPass(LodData* data, int lodIndex) override;
-    void bakeSecondPass(LodData* data, int lodIndex) override;
+    MeshPtr mMesh;
+
+    const IndexData* getSubMeshIndexData(size_t subMeshIndex) const override;
+    void addVertexData(LodData* data, size_t subMeshIndex) override;
+
+    const String & getMeshName() override;
+    size_t getMeshSharedVertexCount() override;
+    float getMeshBoundingSphereRadius() override;
+
+    size_t getSubMeshCount() override;
+
+    bool getSubMeshUseSharedVertices(size_t subMeshIndex) override;
+    size_t getSubMeshOwnVertexCount(size_t subMeshIndex) override;
+    size_t getSubMeshIndexCount(size_t subMeshIndex) override;
+    RenderOperation::OperationType getSubMeshRenderOp(size_t subMeshIndex) override;
 };
 
 }
+
+#include "OgreHeaderSuffix.h"
+
 #endif
-
-
