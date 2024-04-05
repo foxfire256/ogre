@@ -42,6 +42,7 @@ FFPLighting::FFPLighting()
 	mNormalisedEnable               = false;
 	mTwoSidedLighting               = false;
 	mLightCount						= 0;
+	mLtcLUT1SamplerIndex            = -1;
 }
 
 //-----------------------------------------------------------------------
@@ -155,6 +156,9 @@ bool FFPLighting::resolveDependencies(ProgramSet* programSet)
 
 	addDefines(vsProgram);
 
+	if(mSpecularEnable)
+		programSet->getCpuProgram(GPT_FRAGMENT_PROGRAM)->addPreprocessorDefines("USE_SPECULAR");
+
 	return true;
 }
 
@@ -199,14 +203,18 @@ bool FFPLighting::addFunctionInvocations(ProgramSet* programSet)
         auto psOutDiffuse = psMain->resolveOutputParameter(Parameter::SPC_COLOR_DIFFUSE);
 
         auto fstage = psMain->getStage(FFP_PS_COLOUR_BEGIN);
-        fstage.callFunction("SGX_ApplyShadowFactor_Diffuse", {In(ambient), In(shadowFactor), InOut(psOutDiffuse)});
+
+		std::vector<Operand> args = {In(ambient), In(shadowFactor),InOut(psOutDiffuse)};
+
         if (mSpecularEnable)
         {
             auto psSpecular = psMain->getInputParameter(Parameter::SPC_COLOR_SPECULAR);
             if (!psSpecular)
-                psMain->getLocalParameter(Parameter::SPC_COLOR_SPECULAR);
-            fstage.mul(psSpecular, shadowFactor, psSpecular);
+                psSpecular = psMain->getLocalParameter(Parameter::SPC_COLOR_SPECULAR);
+			args.push_back(InOut(psSpecular));
         }
+
+        fstage.callFunction("SGX_ApplyShadowFactor_Modulative", args);
     }
 
     return true;
@@ -270,6 +278,19 @@ void FFPLighting::addIlluminationInvocation(int i, const FunctionStageRef& stage
 		args.insert(args.end(), {In(mSpecularColours), At(i), In(mSurfaceShininess), InOut(mOutSpecular).xyz()});
 	}
 
+	if (mShadowFactor)
+	{
+		if(i < int(mShadowFactor->getSize()))
+			args.insert(args.end(), {In(mShadowFactor), At(i)});
+		else
+			args.push_back(In(1));
+	}
+
+	if(mLTCLUT1)
+	{
+		args.insert(args.end(), {In(mLTCLUT1), In(mLTCLUT2)});
+	}
+
 	stage.callFunction("evaluateLight", args);
 }
 
@@ -282,6 +303,25 @@ void FFPLighting::copyFrom(const SubRenderState& rhs)
 	mLightCount 	  = rhsLighting.mLightCount;
 	mNormalisedEnable = rhsLighting.mNormalisedEnable;
 	mTwoSidedLighting = rhsLighting.mTwoSidedLighting;
+}
+
+uint16 ensureLtcLUTPresent(Pass* dstPass)
+{
+	auto tus = dstPass->getTextureUnitState("ltc_1.dds");
+	// return idx of existing texture unit
+	if(tus)
+		return dstPass->getTextureUnitStateIndex(tus);
+
+	auto ltcSampler = TextureManager::getSingleton().getSampler("Ogre/LtcLUTSampler");
+	tus = dstPass->createTextureUnitState("ltc_1.dds");
+	tus->setNumMipmaps(0);
+	tus->setName("ltc_1.dds");
+	tus->setSampler(ltcSampler);
+	tus = dstPass->createTextureUnitState("ltc_2.dds");
+	tus->setNumMipmaps(0);
+	tus->setSampler(ltcSampler);
+
+	return dstPass->getNumTextureUnitStates() - 2; // idx of first LUT
 }
 
 //-----------------------------------------------------------------------
@@ -308,6 +348,9 @@ bool FFPLighting::preAddToRenderState(const RenderState* renderState, Pass* srcP
 	{
 		mLightCount = 0;
 	}
+
+	if (renderState->haveAreaLights())
+		mLtcLUT1SamplerIndex = ensureLtcLUTPresent(dstPass);
 
 	return true;
 }

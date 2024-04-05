@@ -135,6 +135,12 @@ bool PerPixelLighting::resolveGlobalParameters(ProgramSet* programSet)
         mWorldViewMatrix = vsProgram->resolveParameter(GpuProgramParameters::ACT_WORLDVIEW_MATRIX);
     }
 
+    if(mLtcLUT1SamplerIndex > -1)
+    {
+        mLTCLUT1 = psProgram->resolveParameter(GCT_SAMPLER2D, "ltcLUT1Sampler", mLtcLUT1SamplerIndex);
+        mLTCLUT2 = psProgram->resolveParameter(GCT_SAMPLER2D, "ltcLUT2Sampler", mLtcLUT1SamplerIndex + 1);
+    }
+
     return true;
 }
 
@@ -207,6 +213,9 @@ bool PerPixelLighting::resolveDependencies(ProgramSet* programSet)
 
     addDefines(psProgram);
 
+    if(mLtcLUT1SamplerIndex > -1)
+        psProgram->addPreprocessorDefines("HAVE_AREA_LIGHTS");
+
     return true;
 }
 
@@ -228,21 +237,12 @@ bool PerPixelLighting::addFunctionInvocations(ProgramSet* programSet)
     if(mFrontFacing)
         stage.callFunction("SGX_Flip_Backface_Normal", mFrontFacing, mTargetFlipped, mViewNormal);
 
+    mShadowFactor = psMain->getLocalParameter("lShadowFactor");
+
     // Add per light functions.
     for (int i = 0; i < mLightCount; i++)
     {
         addIlluminationInvocation(i, stage);
-
-        if(i > 0) // directional lights are in front
-            continue;
-
-        if (auto shadowFactor = psMain->getLocalParameter("lShadowFactor"))
-        {
-            stage.callFunction("SGX_ApplyShadowFactor_Diffuse",
-                               {In(mDerivedSceneColour), In(shadowFactor), InOut(mOutDiffuse)});
-            if(mSpecularEnable)
-                stage.mul(mOutSpecular, shadowFactor, mOutSpecular);
-        }
     }
 
     // Assign back temporary variables

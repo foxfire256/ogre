@@ -363,9 +363,6 @@ bool AssimpLoader::_load(const char* name, Assimp::Importer& importer, Mesh* mes
     uint32 flags = aiProcessPreset_TargetRealtime_Fast | aiProcess_TransformUVCoords | aiProcess_FlipUVs;
     flags &= ~(aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace); // optimize for fast loading
 
-    if(StringUtil::endsWith(name, ".gltf") || StringUtil::endsWith(name, ".glb"))
-        flags |= aiProcess_JoinIdenticalVertices;
-
     flags |= options.postProcessSteps;
 
     if((flags & (aiProcess_GenSmoothNormals | aiProcess_GenNormals)) != aiProcess_GenNormals)
@@ -384,7 +381,6 @@ bool AssimpLoader::_load(const char* name, Assimp::Importer& importer, Mesh* mes
     mAnimationSpeedModifier = options.animationSpeedModifier;
     mLoaderParams = options.params;
     mQuietMode = mLoaderParams & LP_QUIET_MODE;
-    mUseIndexBuffer = flags & aiProcess_JoinIdenticalVertices;
     mCustomAnimationName = options.customAnimationName;
     mNodeDerivedTransformByName.clear();
 
@@ -608,7 +604,7 @@ void AssimpLoader::parseAnimation(const aiScene* mScene, int index, aiAnimation*
             defBonePoseInv.makeInverseTransform(bone->getPosition(), bone->getScale(),
                                                 bone->getOrientation());
 
-            NodeAnimationTrack* track = animation->createNodeTrack(i, bone);
+            NodeAnimationTrack* track = animation->createNodeTrack(bone->getHandle(), bone);
 
             // Ogre needs translate rotate and scale for each keyframe in the track
             KeyframesMap keyframes;
@@ -1095,8 +1091,7 @@ bool AssimpLoader::createSubMesh(const String& name, int index, const aiNode* pN
     aiColor4D *col = mesh->mColors[0];
 
     // We must create the vertex data, indicating how many vertices there will be
-    submesh->useSharedVertices = false;
-    submesh->vertexData = new VertexData();
+    submesh->createVertexData();
     submesh->vertexData->vertexStart = 0;
     submesh->vertexData->vertexCount = mesh->mNumVertices;
 
@@ -1265,9 +1260,6 @@ bool AssimpLoader::createSubMesh(const String& name, int index, const aiNode* pN
         LogManager::getSingleton().logMessage(StringConverter::toString(mesh->mNumFaces) + " faces");
     }
 
-    if(!mUseIndexBuffer)
-        return true;
-
     aiFace* faces = mesh->mFaces;
     int faceSz = mesh->mPrimitiveTypes == aiPrimitiveType_LINE ? 2 : 3;
 
@@ -1371,7 +1363,7 @@ struct AssimpCodec : public Codec
 
     static void startup()
     {
-        String version = StringUtil::format("Assimp - %d.%d.%d - Open-Asset-Importer", aiGetVersionMajor(),
+        String version = StringUtil::format("Assimp - %d.%d.%x - Open-Asset-Importer", aiGetVersionMajor(),
                                             aiGetVersionMinor(), aiGetVersionRevision());
         LogManager::getSingleton().logMessage(version);
 

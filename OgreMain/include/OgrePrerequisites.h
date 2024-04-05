@@ -247,6 +247,7 @@ namespace Ogre {
     class UserObjectBindings;
     template <int dims, typename T> class _OgreMaybeExport Vector;
     typedef Vector<2, Real> Vector2;
+    typedef Vector<2, float> Vector2f;
     typedef Vector<2, int> Vector2i;
     typedef Vector<3, Real> Vector3;
     typedef Vector<3, float> Vector3f;
@@ -332,7 +333,9 @@ namespace Ogre
     _OgreExport extern const String MOT_RECTANGLE2D;
     _OgreExport extern const String MOT_STATIC_GEOMETRY;
     _OgreExport extern const String MOT_CAMERA;
+    /// @deprecated use #MOT_FRUSTUM
     _OgreExport extern const String MOT_FRUSTRUM;
+    _OgreExport extern const String MOT_FRUSTUM;
     _OgreExport extern const String MOT_MOVABLE_PLANE;
     _OgreExport extern const String MOT_INSTANCE_BATCH;
     _OgreExport extern const String MOT_INSTANCED_ENTITY;

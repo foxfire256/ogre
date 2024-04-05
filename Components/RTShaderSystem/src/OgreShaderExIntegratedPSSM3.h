@@ -49,7 +49,7 @@ class IntegratedPSSM3 : public SubRenderState
 
     // Interface.
 public:
-    typedef std::vector<Real> SplitPointList;
+    typedef std::vector<float> SplitPointList;
 
     /** Class default constructor */    
     IntegratedPSSM3();
@@ -177,6 +177,7 @@ protected:
     bool mUseColourShadows;
     bool mDebug;
     bool mIsD3D9;
+    uchar mMultiLightCount;
 };
 
 

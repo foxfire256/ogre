@@ -82,9 +82,6 @@ THE SOFTWARE.
 #include "OgreShaderCookTorranceLighting.h"
 #include "OgreShaderImageBasedLighting.h"
 
-#include "OgreShaderHLSLProgramProcessor.h"
-#include "OgreShaderGLSLProgramProcessor.h"
-
 #include "OgreShaderProgramWriter.h"
 #include "OgreShaderProgramWriterManager.h"
 #include "OgreShaderCGProgramWriter.h"
@@ -140,6 +137,8 @@ public:
 protected:
     SubRenderState* createInstanceImpl() override;
 };
+
+uint16 ensureLtcLUTPresent(Pass* dstPass);
 
 } // namespace RTShader
 } // namespace Ogre

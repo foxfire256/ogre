@@ -220,7 +220,9 @@ bool Sample_ShaderSystem::frameRenderingQueued( const FrameEvent& evt )
 //-----------------------------------------------------------------------
 void Sample_ShaderSystem::setupContent()
 {
-    
+    mTextureAtlasFactory = OGRE_NEW TextureAtlasSamplerFactory;
+    mShaderGenerator->addSubRenderStateFactory(mTextureAtlasFactory);
+
     // Setup default effects values.
     mCurLightingModel       = SSLM_PerPixelLighting;
     mPerPixelFogEnable      = false;
@@ -859,7 +861,7 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
         mSceneMgr->setShadowTechnique(SHADOWTYPE_NONE);
 
 #ifdef RTSHADER_SYSTEM_BUILD_EXT_SHADERS
-        if (auto srs = schemRenderState->getSubRenderState(SRS_INTEGRATED_PSSM3))
+        if (auto srs = schemRenderState->getSubRenderState(SRS_SHADOW_MAPPING))
         {
             schemRenderState->removeSubRenderState(srs);
         }
@@ -914,7 +916,7 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
         mSceneMgr->setShadowCameraSetup(ShadowCameraSetupPtr(pssmSetup));
 
     
-        auto subRenderState = mShaderGenerator->createSubRenderState(SRS_INTEGRATED_PSSM3);
+        auto subRenderState = mShaderGenerator->createSubRenderState(SRS_SHADOW_MAPPING);
         subRenderState->setParameter("split_points", pssmSetup->getSplitPoints());
         subRenderState->setParameter("debug", menuIndex > 1);
         schemRenderState->addTemplateSubRenderState(subRenderState);        
@@ -932,13 +934,6 @@ void Sample_ShaderSystem::testCapabilities( const RenderSystemCapabilities* caps
         return;
 
     OGRE_EXCEPT(Exception::ERR_NOT_IMPLEMENTED, "RTSS not supported on your system");
-}
-
-//-----------------------------------------------------------------------
-void Sample_ShaderSystem::loadResources()
-{
-    mTextureAtlasFactory = OGRE_NEW TextureAtlasSamplerFactory;
-    mShaderGenerator->addSubRenderStateFactory(mTextureAtlasFactory);
 }
 
 //-----------------------------------------------------------------------

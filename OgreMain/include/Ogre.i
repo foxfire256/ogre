@@ -46,6 +46,8 @@ using namespace std;
 #define OGRE_STATIC_MUTEX(arg)
 #define OGRE_MUTEX(arg)
 
+typedef long int time_t;
+
 %feature("autodoc", "1");
 %feature("director") *::Listener;
 #ifdef SWIGPYTHON
@@ -113,6 +115,9 @@ JNIEnv* OgreJNIGetEnv() {
     catch (Swig::DirectorException &e) { 
         SWIG_fail;
     }
+    catch (std::length_error &e) {
+        SWIG_fail;
+    }
 #endif
     catch (const std::exception& e) {
         SWIG_exception(SWIG_RuntimeError, e.what());
@@ -158,6 +163,19 @@ JNIEnv* OgreJNIGetEnv() {
 %template(classname ## Ptr) Ogre::SharedPtr<Ogre::classname >;
 %enddef
 
+%ignore *::operator[];
+%define SEQUENCE_METHODS
+{
+    void __setitem__(uint i, float v) { (*$self)[i] = v; }
+    size_t __len__() { return sizeof(*$self)/sizeof(float); }
+    float __getitem__(uint i) {
+        if(i >= sizeof(*$self)/sizeof(float))
+            throw std::length_error("out of bounds");
+        return (*$self)[i];
+    }
+}
+%enddef
+
 #ifdef SWIGJAVA
 // use proper (1.5+) enums
 %include "enums.swg"
@@ -166,6 +184,10 @@ JNIEnv* OgreJNIGetEnv() {
 #endif
 
 #ifdef SWIGCSHARP
+typedef uint32_t uint32;
+typedef uint16_t uint16;
+typedef uint8_t uint8;
+
 %ignore Ogre::HardwareBuffer::UsageEnum;
 %ignore Ogre::TextureUsage;
 %ignore Ogre::GpuConstantType;
@@ -205,15 +227,14 @@ JNIEnv* OgreJNIGetEnv() {
 %csmethodmodifiers Ogre::BillboardChain::preRender "public";
 #endif
 
-// connect operator[] to __getitem__
-%feature("python:slot", "sq_item", functype="ssizeargfunc") *::operator[];
-%rename(__getitem__) *::operator[];
-%ignore Ogre::Matrix3::operator[];
-%ignore Ogre::Matrix4::operator[];
-%ignore Ogre::ColourValue::operator[];
+// connect __getitem__
+%feature("python:slot", "sq_item", functype="ssizeargfunc") *::__getitem__;
 
 // connect __setitem__
 %feature("python:slot", "sq_ass_item", functype="ssizeobjargproc") *::__setitem__;
+
+// connect __len__
+%feature("python:slot", "sq_length", functype="lenfunc") *::__len__;
 
 // stringinterface internal
 %rename("$ignore", regextarget=1) "^Cmd+";
@@ -254,6 +275,7 @@ ADD_REPR(TRect)
 %ignore Ogre::Any::destroy; // deprecated
 %ignore Ogre::Any::isEmpty; // deprecated
 %include "OgreAny.h"
+%ignore Ogre::Math::calculateTangentSpaceVector; // deprecated
 %include "OgreMath.h"
 ADD_REPR(Degree)
 ADD_REPR(Radian)
@@ -290,18 +312,20 @@ ADD_REPR(Vector)
 %template(VectorBase ## N) Ogre::VectorBase<N, Ogre::Real>;
 %template(Vector ## N) Ogre::Vector<N, Ogre::Real>;
 
-%extend Ogre::Vector<N, Ogre::Real> {
-    void __setitem__(uint i, float v) { (*$self)[i] = v; }
-}
+%extend Ogre::Vector<N, Ogre::Real> SEQUENCE_METHODS
 %enddef
 
 %ignore Ogre::VectorBase<3, int>::VectorBase;
 %template(VectorBase3i) Ogre::VectorBase<3, int>;
 %template(Vector3i) Ogre::Vector<3, int>;
+%extend Ogre::Vector<3, int> SEQUENCE_METHODS
 
 TPL_VECTOR(2)
 TPL_VECTOR(3)
 TPL_VECTOR(4)
+
+%extend Ogre::ColourValue SEQUENCE_METHODS
+%extend Ogre::Quaternion SEQUENCE_METHODS
 
 #ifdef SWIGCSHARP
 %define CS_VECTOR_OPS(N)
@@ -322,18 +346,24 @@ CS_VECTOR_OPS(4);
 
 #ifdef SWIGPYTHON
 // enable implicit conversion from float to Radian
-%typemap(in) const Ogre::Radian& (float tmp) {
+%typemap(in) const Ogre::Radian& (Ogre::Radian tmp) {
     void *argp = 0;
     int res = SWIG_ConvertPtr($input, &argp, $descriptor, $disown);
     if (SWIG_IsOK(res)) {
         $1 = ($ltype)(argp);
     }
-    else {
-        res = SWIG_AsVal_float($input, &tmp);
-        $1 = (Ogre::Radian*)&tmp;
+    else if(SWIG_IsOK(SWIG_ConvertPtr($input, &argp, $descriptor(Ogre::Degree*), $disown)))
+    {
+        tmp = *((Ogre::Degree*)argp);
+        $1 = &tmp;
+    }
+    else
+    {
+        res = SWIG_AsVal_float($input, (float*)&tmp);
+        $1 = &tmp;
 
         if (!SWIG_IsOK(res))
-            SWIG_exception_fail(SWIG_TypeError, "Expected float or Ogre::Radian");
+            %argument_fail(SWIG_TypeError, "float (Ogre::Radian) or Ogre::Degree", $symname, $argnum);
     }
 }
 // punch through overload resolution
@@ -368,18 +398,12 @@ CS_VECTOR_OPS(4);
     if (SWIG_IsOK(res)) {
         $1 = ($ltype)(argp);
     } else {
-        if (!PySequence_Check($input)) {
-            SWIG_exception_fail(SWIG_TypeError, "Expected TYPE or sequence") ;
-        }
         int len = PySequence_Length($input);
-        if (!(LEN_CHECK)) {
-            SWIG_exception_fail(SWIG_ValueError, "Size mismatch. Expected LEN_CHECK");
-        }
         for (int i = 0; i < len; i++) {
             PyObject *o = PySequence_GetItem($input, i);
             if (!PyNumber_Check(o)) {
                 Py_XDECREF(o);
-                SWIG_exception_fail(SWIG_TypeError, "Sequence elements must be numbers");
+                %argument_fail(SWIG_TypeError, "Sequence[float]", $symname, $argnum);
             }
             temp.ptr()[i] = (float)PyFloat_AsDouble(o);
             Py_DECREF(o);
@@ -387,17 +411,25 @@ CS_VECTOR_OPS(4);
         $1 = &temp;
     }
 }
-%typecheck(SWIG_TYPECHECK_POINTER) const TYPE& {
-    // actual check in the typemap, just skip strings here
-    $1 = PyUnicode_Check($input) == 0;
+%typecheck(SWIG_TYPECHECK_STRING) const TYPE& {
+    if (PySequence_Check($input))
+    {
+        int len = PySequence_Length($input);
+        $1 = (LEN_CHECK);
+    }
+    else {
+        $1 = false;
+    }
 }
 %enddef
 TYPEMAP_SEQUENCE_FOR(Ogre::Vector2, len == 2)
 TYPEMAP_SEQUENCE_FOR(Ogre::Vector3, len == 3)
 TYPEMAP_SEQUENCE_FOR(Ogre::Vector4, len == 4)
+TYPEMAP_SEQUENCE_FOR(Ogre::Quaternion, len == 4)
 TYPEMAP_SEQUENCE_FOR(Ogre::ColourValue, len >= 3 && len <= 4)
 #endif
 
+%ignore Ogre::Matrix3::Orthonormalize;
 %include "OgreMatrix3.h"
 ADD_REPR(Matrix3)
 %extend Ogre::Matrix3
@@ -493,6 +525,7 @@ SHARED_PTR(FileHandleDataStream);
 %feature("director") Ogre::MeshSerializerListener;
 %feature("director") Ogre::ResourceLoadingListener;
 // More Data Types
+%ignore Ogre::ColourValue::getHSB; // deprecated
 %include "OgreColourValue.h"
 ADD_REPR(ColourValue)
 %include "OgrePixelFormat.h"
@@ -521,8 +554,10 @@ ADD_REPR(ColourValue)
 %ignore Ogre::GpuSharedParameters::getConstantDefinitionIterator;
 SHARED_PTR(GpuProgramParameters);
 %include "OgreGpuProgramParams.h"
+%ignore Ogre::Image::getFileExtFromMagic;
 %include "OgreImage.h"
 %include "OgreBillboard.h"
+%ignore Ogre::Particle::hasOwnDimensions ; // deprecated
 %include "OgreParticle.h"
 %include "OgreHardwareOcclusionQuery.h"
 SHARED_PTR(HardwareBuffer);
@@ -552,6 +587,7 @@ SHARED_PTR(StringInterface);
             SHARED_PTR(HighLevelGpuProgram);
             %include "OgreHighLevelGpuProgram.h"
 %include "OgreRenderSystemCapabilities.h"
+%ignore getPropertyName;
 %include "OgreScriptCompiler.h"
 %ignore Ogre::TextureUnitState::setCubicTexture;
 %ignore Ogre::TextureUnitState::setCubicTextureName;
@@ -582,11 +618,11 @@ SHARED_PTR(Compositor);
 %ignore Ogre::CompositionTargetPass::getNumPasses;
 %ignore Ogre::CompositionTargetPass::getPassIterator;
 %include "OgreCompositionTargetPass.h"
-SHARED_PTR(HardwareBuffer);
 SHARED_PTR(HardwareVertexBuffer);
 #ifdef SWIGPYTHON
 %template(VertexElementList) std::list<Ogre::VertexElement>;
 #endif
+%ignore Ogre::VertexElement::getBestColourVertexElementType;
 %include "OgreHardwareVertexBuffer.h"
 SHARED_PTR(HardwareIndexBuffer);
 %include "OgreHardwareIndexBuffer.h"
@@ -616,7 +652,9 @@ SHARED_PTR(HardwarePixelBuffer);
     // ambiguity as enums are just ints
     %ignore Ogre::TextureManager::createManual(const String&, const String&,TextureType,uint,uint,int,PixelFormat,int);
     %ignore Ogre::TextureManager::createManual(const String&, const String&,TextureType,uint,uint,int,PixelFormat);
+    %ignore Ogre::TextureManager::load(const String&, const String&,TextureType,int,float,bool,PixelFormat=PF_UNKNOWN,bool=false);
     %include "OgreTextureManager.h"
+    %ignore Ogre::TextureManager::getByName(const String&, const String&,bool) const;
     %include "OgreGpuProgramManager.h"
     %include "OgreHighLevelGpuProgramManager.h"
 // animations
@@ -641,6 +679,10 @@ SHARED_PTR(HardwarePixelBuffer);
     template<> struct traits<Ogre::Camera> {
         typedef pointer_category category;
         static const char* type_name() { return "Ogre::Camera"; }
+    };
+    template<> struct traits<Ogre::StaticGeometry> {
+        typedef pointer_category category;
+        static const char* type_name() { return "Ogre::StaticGeometry"; }
     };
     }
 %}
@@ -686,6 +728,7 @@ SHARED_PTR(Material);
 %ignore Ogre::RenderSystem::getColourVertexElementType;
 %ignore Ogre::RenderSystem::setStencilCheckEnabled;
 %ignore Ogre::RenderSystem::setStencilBufferParams;
+%ignore Ogre::RenderSystem::setScissorTest(bool, uint32, uint32 = 0, uint32 = 800, uint32 = 600);
 %include "OgreRenderSystem.h"
 %include "OgreCompositorManager.h"
 #ifdef SWIGJAVA
@@ -724,6 +767,7 @@ SHARED_PTR(Material);
     %ignore Ogre::Light::setPosition;
     %ignore Ogre::Light::getPosition;
     %ignore Ogre::Light::getDirection;
+    %ignore Ogre::Light::_deriveShadowFarClipDistance(const Camera*) const;
     %include "OgreLight.h"
     %ignore Ogre::Node::getChildIterator;
     %template(NodeList) std::vector<Ogre::Node*>;
@@ -771,6 +815,8 @@ SHARED_PTR(Material);
     %ignore Ogre::Entity::getAttachedObjectIterator;
     %include "OgreEntity.h"
     %include "OgreSubEntity.h"
+    %ignore Ogre::ParticleSystemRenderer::_createVisualData;
+    %ignore Ogre::ParticleSystemRenderer::_destroyVisualData;
     %include "OgreParticleSystemRenderer.h"
     SHARED_PTR(ParticleSystem);
     %ignore Ogre::ParticleSystem::_getIterator;
@@ -800,6 +846,8 @@ SHARED_PTR(Material);
 %template(SubMeshList) std::vector<Ogre::SubMesh*>;
 %apply unsigned short& OUTPUT { unsigned short& outSourceCoordSet, unsigned short& outIndex };
 SHARED_PTR(Mesh);
+%ignore Ogre::Mesh::buildTangentVectors(VertexElementSemantic,unsigned short=0,unsigned short=0,bool=false,bool=false,bool=false);
+%ignore Ogre::Mesh::suggestTangentVectorBuildParams(VertexElementSemantic,unsigned short&,unsigned short&);
 %include "OgreMesh.h"
 %ignore Ogre::SubMesh::getBoneAssignmentIterator;
 %include "OgreSubMesh.h"
@@ -844,8 +892,9 @@ SHARED_PTR(Mesh);
 %ignore Ogre::Viewport::getActualDimensions(int&, int& ,int& ,int&) const;
 %include "OgreViewport.h"
 %ignore Ogre::CompositorChain::getNumCompositors;
-%ignore Ogre::CompositorChain::getCompositor;
+%ignore Ogre::CompositorChain::getCompositor(size_t) const;
 %ignore Ogre::CompositorChain::getCompositors;
+%template(CompositorInstanceList) std::vector<Ogre::CompositorInstance*>;
 %include "OgreCompositorChain.h"
 %ignore Ogre::RenderQueueGroup::getIterator;
 %include "OgreRenderQueueSortingGrouping.h"
@@ -859,6 +908,7 @@ SHARED_PTR(Mesh);
 %newobject Ogre::SceneManager::createRayQuery(const Ray&);
 %rename(SceneManager_Listener) Ogre::SceneManager::Listener;
 %template(MovableObjectMap) std::map<std::string, Ogre::MovableObject*>;
+%template(StaticGeometryMap) std::map<std::string, Ogre::StaticGeometry*>;
 %template(CameraMap) std::map<std::string, Ogre::Camera*>;
 %include "OgreSceneManager.h"
 %include "OgreDefaultDebugDrawer.h"
