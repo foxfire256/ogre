@@ -40,18 +40,18 @@ namespace Ogre {
     /** \addtogroup RenderSystem
     *  @{
     */
-    /** An abstraction of a viewport, i.e. a rendering region on a render
+    /** An abstraction of a viewport, i.e., a rendering region on a render
         target.
 
-            A viewport is the meeting of a camera and a rendering surface -
-            the camera renders the scene from a viewpoint, and places its
-            results into some subset of a rendering target, which may be the
-            whole surface or just a part of the surface. Each viewport has a
-            single camera as source and a single target as destination. A
-            camera only has 1 viewport, but a render target may have several.
-            A viewport also has a Z-order, i.e. if there is more than one
-            viewport on a single render target and they overlap, one must
-            obscure the other in some predetermined way.
+        A viewport is the meeting of a camera and a rendering surface -
+        the camera renders the scene from a viewpoint, and places its
+        results into some subset of a rendering target, which may be the
+        whole surface or just a part of the surface. Each viewport has a
+        single camera as source and a single target as destination. A
+        camera only has 1 viewport, but a render target may have several.
+        A viewport also has a Z-order, i.e. if there is more than one
+        viewport on a single render target and they overlap, one must
+        obscure the other in some predetermined way.
     */
     class _OgreExport Viewport : public ViewportAlloc
     {
@@ -87,7 +87,13 @@ namespace Ogre {
                 Relative Z-order on the target. Lower = further to
                 the front.
         */
-        Viewport(Camera* camera, RenderTarget* target, float left, float top, float width, float height, int ZOrder);
+        Viewport(Camera* camera, RenderTarget* target, float left, float top, float width, float height, int ZOrder)
+            : Viewport(camera, target, {left, top, left + width, top + height}, ZOrder)
+        {
+        }
+
+        /// @overload
+        Viewport(Camera* camera, RenderTarget* target, FloatRect relRect, int ZOrder);
 
         /** Default destructor.
         */
@@ -95,8 +101,8 @@ namespace Ogre {
 
         /** Notifies the viewport of a possible change in dimensions.
 
-                Used by the target to update the viewport's dimensions
-                (usually the result of a change in target size).
+            Used by the target to update the viewport's dimensions
+            (usually the result of a change in target size).
             @note
                 Internal use by Ogre only.
         */
@@ -109,10 +115,10 @@ namespace Ogre {
         /** Instructs the viewport to clear itself, without performing an update.
 
             You would not normally call this method when updating the viewport, 
-            since the viewport usually clears itself when updating anyway (@see 
-            Viewport::setClearEveryFrame). However, if you wish you have the
+            since the viewport usually clears itself when updating anyway. However, if you wish you have the
             option of manually clearing the frame buffer (or elements of it)
             using this method.
+            @see Viewport::setClearEveryFrame
          @param buffers Bitmask identifying which buffer elements to clear
          @param colour The colour value to clear to, if FBT_COLOUR is included
          @param depth The depth value to clear to, if FBT_DEPTH is included
@@ -134,43 +140,17 @@ namespace Ogre {
 
         /** Gets the Z-Order of this viewport. */
         int getZOrder(void) const { return mZOrder; }
-        /** Gets one of the relative dimensions of the viewport,
-            a value between 0.0 and 1.0.
-        */
+
+        /// @name Relative dimensions
+        /// These methods return the relative dimensions of the viewport, which are
+        /// expressed as a value between 0.0 and 1.0.
+        /// @{
         float getLeft(void) const { return mRelRect.left; }
-
-        /** Gets one of the relative dimensions of the viewport, a value
-            between 0.0 and 1.0.
-        */
         float getTop(void) const { return mRelRect.top; }
-
-        /** Gets one of the relative dimensions of the viewport, a value
-            between 0.0 and 1.0.
-        */
         float getWidth(void) const { return mRelRect.width(); }
-        /** Gets one of the relative dimensions of the viewport, a value
-            between 0.0 and 1.0.
-        */
         float getHeight(void) const { return mRelRect.height(); }
-        /** Gets one of the actual dimensions of the viewport, a value in
-            pixels.
-        */
-
-        int getActualLeft(void) const { return mActRect.left; }
-        /** Gets one of the actual dimensions of the viewport, a value in
-            pixels.
-        */
-
-        int getActualTop(void) const { return mActRect.top; }
-        /** Gets one of the actual dimensions of the viewport, a value in
-            pixels.
-        */
-        int getActualWidth(void) const { return mActRect.width(); }
-        /** Gets one of the actual dimensions of the viewport, a value in
-            pixels.
-        */
-
-        int getActualHeight(void) const { return mActRect.height(); }
+        FloatRect getDimensions(void) const { return mRelRect; }
+        /// @}
 
         /** Sets the dimensions (after creation).
             @param
@@ -186,6 +166,16 @@ namespace Ogre {
                 target area is 0, 0, 1, 1.
         */
         void setDimensions(float left, float top, float width, float height);
+
+        /// @name Actual dimensions
+        /// These methods return the actual dimensions of the viewport in pixels.
+        /// @{
+        int getActualLeft(void) const { return mActRect.left; }
+        int getActualTop(void) const { return mActRect.top; }
+        int getActualWidth(void) const { return mActRect.width(); }
+        int getActualHeight(void) const { return mActRect.height(); }
+        Rect getActualDimensions() const { return mActRect; }
+        /// @}
 
         /** Sets the initial background colour of the viewport (before
             rendering).
@@ -255,10 +245,6 @@ namespace Ogre {
         const String& getMaterialScheme(void) const
         { return mMaterialSchemeName; }
 
-        /** Access to actual dimensions (based on target size).
-        */
-        Rect getActualDimensions() const { return mActRect; }
-
         /// @deprecated
         OGRE_DEPRECATED void getActualDimensions(int& left, int& top, int& width, int& height) const;
 
@@ -276,7 +262,7 @@ namespace Ogre {
         /** Tells this viewport whether it should display Overlay objects.
 
             Overlay objects are layers which appear on top of the scene. They are created via
-            SceneManager::createOverlay and every viewport displays these by default.
+            @ref OverlayManager::create and every viewport displays these by default.
             However, you probably don't want this if you're using multiple viewports,
             because one of them is probably a picture-in-picture which is not supposed to
             have overlays of it's own. In this case you can turn off overlays on this viewport
@@ -285,7 +271,7 @@ namespace Ogre {
         */
         void setOverlaysEnabled(bool enabled) { mShowOverlays = enabled; }
 
-        /** Returns whether or not Overlay objects (created in the SceneManager) are displayed in this
+        /** Returns whether or not Overlay objects (created with the OverlayManager) are displayed in this
             viewport. */
         bool getOverlaysEnabled(void) const { return mShowOverlays; }
 
@@ -324,9 +310,9 @@ namespace Ogre {
 
             The visibility mask is a way to exclude objects from rendering for
             a given viewport. For each object in the frustum, a check is made
-            between this mask and the objects visibility flags 
-            (@see MovableObject::setVisibilityFlags), and if a binary 'and'
+            between this mask and the objects visibility flags, and if a binary 'and'
             returns zero, the object will not be rendered.
+            @see MovableObject::setVisibilityFlags
         */
         void setVisibilityMask(uint32 mask) { mVisibilityMask = mask; }
 

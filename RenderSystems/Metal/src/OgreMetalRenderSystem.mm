@@ -183,6 +183,7 @@ namespace Ogre
         rsc->setCapability(RSC_VERTEX_PROGRAM);
         rsc->setCapability(RSC_VERTEX_BUFFER_INSTANCE_DATA);
         rsc->setCapability(RSC_VERTEX_FORMAT_INT_10_10_10_2);
+        rsc->setCapability(RSC_VERTEX_FORMAT_16X3);
         rsc->setCapability(RSC_MIPMAP_LOD_BIAS);
         rsc->setCapability(RSC_ALPHA_TO_COVERAGE);
         rsc->setMaxPointSize(256);
@@ -197,6 +198,13 @@ namespace Ogre
         rsc->setVertexProgramConstantFloatCount( 16384 );
         rsc->setFragmentProgramConstantFloatCount( 16384 );
         rsc->setComputeProgramConstantFloatCount( 16384 );
+
+#if OGRE_PLATFORM == OGRE_PLATFORM_APPLE_IOS
+        if( [mActiveDevice->mDevice supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily5_v1] )
+            rsc->setCapability( RSC_VP_RT_INDEX_ANY_SHADER );
+#else
+        rsc->setCapability( RSC_VP_RT_INDEX_ANY_SHADER );
+#endif
 
 #if OGRE_PLATFORM != OGRE_PLATFORM_APPLE_IOS
         uint8 mrtCount = 8u;

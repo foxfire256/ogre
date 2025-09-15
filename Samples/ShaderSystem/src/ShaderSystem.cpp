@@ -67,7 +67,6 @@ Sample_ShaderSystem::Sample_ShaderSystem() :
     mInstancedViewportsEnable = false;
     mInstancedViewportsSubRenderState = NULL;
     mInstancedViewportsFactory = NULL;
-    mBbsFlare = NULL;
     mAddedLotsOfModels = false;
     mNumberOfModelsAdded = 0;
     mCurrentBlendMode = NUM_BLEND_MODES - 1;
@@ -220,8 +219,11 @@ bool Sample_ShaderSystem::frameRenderingQueued( const FrameEvent& evt )
 //-----------------------------------------------------------------------
 void Sample_ShaderSystem::setupContent()
 {
-    mTextureAtlasFactory = OGRE_NEW TextureAtlasSamplerFactory;
-    mShaderGenerator->addSubRenderStateFactory(mTextureAtlasFactory);
+    mTextureAtlasFactory.reset(new TextureAtlasSamplerFactory);
+    mShaderGenerator->addSubRenderStateFactory(mTextureAtlasFactory.get());
+
+    mInstancedViewportsFactory.reset(new ShaderExInstancedViewportsFactory);
+    mShaderGenerator->addSubRenderStateFactory(mInstancedViewportsFactory.get());
 
     // Setup default effects values.
     mCurLightingModel       = SSLM_PerPixelLighting;
@@ -402,6 +404,11 @@ void Sample_ShaderSystem::setupUI()
 #ifdef RTSHADER_SYSTEM_BUILD_EXT_SHADERS
     mShadowMenu->addItem("PSSM 3");
     mShadowMenu->addItem("PSSM debug");
+
+    if(Root::getSingleton().getRenderSystem()->getCapabilities()->hasCapability(RSC_VP_RT_INDEX_ANY_SHADER))
+    {
+        mShadowMenu->addItem("PSSM3 SP");
+    }
 #endif
 
 
@@ -667,14 +674,6 @@ void Sample_ShaderSystem::createDirectionalLight()
     // create pivot node
     mDirectionalLightNode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
     mDirectionalLightNode->setDirection(dir);
-
-    // Create billboard set.
-    mBbsFlare = mSceneMgr->createBillboardSet();
-    mBbsFlare->setMaterialName("Examples/Flare3");
-    mBbsFlare->createBillboard(-dir * 500.0)->setColour(light->getDiffuseColour());
-    mBbsFlare->setCastShadows(false);
-    
-    mDirectionalLightNode->attachObject(mBbsFlare);
     mDirectionalLightNode->attachObject(light);
 }
 
@@ -781,14 +780,10 @@ void Sample_ShaderSystem::updateInstancedViewports(bool enabled)
         if (mInstancedViewportsEnable)
         {
             mCamera->setCullingFrustum(&mInfiniteFrustum);
-
-            // having problems with bb...
-            mDirectionalLightNode->detachObject(mBbsFlare);
         }
         else
         {
             mCamera->setCullingFrustum(NULL);
-            mDirectionalLightNode->attachObject(mBbsFlare);
         }
 
 
@@ -881,6 +876,8 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
     // Integrated shadow PSSM with 3 splits.
     else if (menuIndex >= 1)
     {
+        auto casterMat = MaterialManager::getSingleton().getByName("PSSM/shadow_caster");
+        mSceneMgr->setShadowTextureCasterMaterial(casterMat);
         mSceneMgr->setShadowTechnique(SHADOWTYPE_TEXTURE_MODULATIVE_INTEGRATED);
         mSceneMgr->setShadowFarDistance(3000);
 
@@ -897,14 +894,6 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
         mTrayMgr->removeWidgetFromTray(mDirLightCheckBox);
         mDirLightCheckBox->hide();
 
-        // Disable fog on the caster pass.
-        MaterialPtr passCaterMaterial = MaterialManager::getSingleton().getByName("PSSM/shadow_caster");
-        Pass* pssmCasterPass = passCaterMaterial->getTechnique(0)->getPass(0);
-        pssmCasterPass->setFog(true);
-
-        // Set up caster material - this is just a standard depth/shadow map caster
-        mSceneMgr->setShadowTextureCasterMaterial(passCaterMaterial);
-
         // shadow camera setup
         PSSMShadowCameraSetup* pssmSetup = new PSSMShadowCameraSetup();
         pssmSetup->calculateSplitPoints(3, mCamera->getNearClipDistance(), mSceneMgr->getShadowFarDistance());
@@ -918,7 +907,29 @@ void Sample_ShaderSystem::applyShadowType(int menuIndex)
     
         auto subRenderState = mShaderGenerator->createSubRenderState(SRS_SHADOW_MAPPING);
         subRenderState->setParameter("split_points", pssmSetup->getSplitPoints());
-        subRenderState->setParameter("debug", menuIndex > 1);
+        subRenderState->setParameter("debug", menuIndex == 2);
+        subRenderState->setParameter("array_texture", menuIndex == 3);
+
+        if(menuIndex == 3)
+        {
+            mSceneMgr->setShadowTextureCount(1);
+            ShadowTextureConfig shadowTextureConfig;
+            shadowTextureConfig.format = PF_DEPTH16;
+            shadowTextureConfig.width = 512;
+            shadowTextureConfig.height = 512;
+            shadowTextureConfig.depth = 3;
+            shadowTextureConfig.type = TEX_TYPE_2D_ARRAY;
+            shadowTextureConfig.extraFlags = TU_TARGET_ALL_LAYERS;
+            mSceneMgr->setShadowTextureConfig(0, shadowTextureConfig);
+
+            auto vprtState= mShaderGenerator->createSubRenderState("SGX_InstancedViewports");
+            vprtState->setParameter("schemeName", Any(MSN_SHADOWCASTER));
+            vprtState->setParameter("layeredTarget", true);
+            vprtState->setParameter("viewportGrid", Vector2(3, 1));
+
+            auto casterRenderState = mShaderGenerator->getRenderState(MSN_SHADERGEN, *casterMat, 0);
+            casterRenderState->addTemplateSubRenderState(vprtState);
+        }
         schemRenderState->addTemplateSubRenderState(subRenderState);        
     }
 #endif
@@ -939,12 +950,20 @@ void Sample_ShaderSystem::testCapabilities( const RenderSystemCapabilities* caps
 //-----------------------------------------------------------------------
 void Sample_ShaderSystem::unloadResources()
 {
-    if (mTextureAtlasFactory != NULL)
+    mShaderGenerator->removeAllShaderBasedTechniques("PSSM/shadow_caster");
+
+    if (mTextureAtlasFactory)
     {
         mTextureAtlasFactory->destroyAllInstances();
-        mShaderGenerator->removeSubRenderStateFactory(mTextureAtlasFactory);
-        OGRE_DELETE mTextureAtlasFactory;
-        mTextureAtlasFactory = NULL;
+        mShaderGenerator->removeSubRenderStateFactory(mTextureAtlasFactory.get());
+        mTextureAtlasFactory.reset();
+    }
+
+    if (mInstancedViewportsFactory)
+    {
+        mInstancedViewportsFactory->destroyAllInstances();
+        mShaderGenerator->removeSubRenderStateFactory(mInstancedViewportsFactory.get());
+        mInstancedViewportsFactory.reset();
     }
 }
 
@@ -1091,41 +1110,40 @@ void Sample_ShaderSystem::destroyInstancedViewports()
     mShaderGenerator->invalidateScheme(Ogre::MSN_SHADERGEN);
     mShaderGenerator->validateScheme(Ogre::MSN_SHADERGEN);
 
-    destroyInstancedViewportsFactory();
-
-}
-//-----------------------------------------------------------------------
-void Sample_ShaderSystem::destroyInstancedViewportsFactory()
-{
-    if (mInstancedViewportsFactory != NULL)
+    for (int i = 0; i < 3; i++)
     {
-        mInstancedViewportsFactory->destroyAllInstances();
-        mShaderGenerator->removeSubRenderStateFactory(mInstancedViewportsFactory);
-        delete mInstancedViewportsFactory;
-        mInstancedViewportsFactory = NULL;
+        mSceneMgr->destroyCamera(StringUtil::format("InstancedCamera%d", i));
     }
 }
 //-----------------------------------------------------------------------
 
 void Sample_ShaderSystem::createInstancedViewports()
 {
-    if (mInstancedViewportsFactory == NULL)
+    if (Root::getSingletonPtr()->getRenderSystem()->getName().find("Direct3D9") != String::npos)
     {
-        mInstancedViewportsFactory = OGRE_NEW ShaderExInstancedViewportsFactory;    
-        mShaderGenerator->addSubRenderStateFactory(mInstancedViewportsFactory);
+        mSceneMgr->getManualObject("TextureAtlasObject")->getParentSceneNode()->setVisible(false);
+        mSceneMgr->setSkyBox(false, "");
     }
 
-    Ogre::Vector2 monitorCount(2.0, 2.0);
-    mInstancedViewportsSubRenderState = mShaderGenerator->createSubRenderState<RTShader::ShaderExInstancedViewports>();
-    Ogre::RTShader::ShaderExInstancedViewports* shaderExInstancedViewports 
-        = static_cast<Ogre::RTShader::ShaderExInstancedViewports*>(mInstancedViewportsSubRenderState);
-    shaderExInstancedViewports->setMonitorsCount(monitorCount);
+    std::vector<const Camera*> cameras = {mCamera};
+    for (int i = 0; i < 3; i++)
+    {
+        auto cam = mSceneMgr->createCamera(StringUtil::format("InstancedCamera%d", i));
+        auto node = mCamera->getParentSceneNode()->createChildSceneNode();
+        node->yaw(Degree(i * 90 - 45));
+        node->attachObject(cam);
+        cameras.push_back(cam);
+    }
+
+    mSceneMgr->setVPRTCameras(cameras);
+
+    mInstancedViewportsSubRenderState = mShaderGenerator->createSubRenderState("SGX_InstancedViewports");
+    mInstancedViewportsSubRenderState->setParameter("viewportGrid", Vector2(2, 2));
     Ogre::RTShader::RenderState* renderState = mShaderGenerator->getRenderState(Ogre::MSN_SHADERGEN);
     renderState->addTemplateSubRenderState(mInstancedViewportsSubRenderState);
 
     // Invalidate the scheme in order to re-generate all shaders based technique related to this scheme.
     mShaderGenerator->invalidateScheme(Ogre::MSN_SHADERGEN);
-    mShaderGenerator->validateScheme(Ogre::MSN_SHADERGEN);
 }
 
 void Sample_ShaderSystem::createMaterialForTexture( const String & texName, bool isTextureAtlasTexture )

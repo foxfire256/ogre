@@ -270,10 +270,12 @@ void Sample_Compositor::setupControls(void)
 
     mTrayMgr->createSeparator(TL_TOPRIGHT, "DebugRTTSep1");  // this is a hack to give the debug RTT a bit more room
 
+    // make sure we query the correct scheme
+    MaterialManager::getSingleton().setActiveScheme(mViewport->getMaterialScheme());
+
     DecorWidget* debugRTTPanel = mTrayMgr->createDecorWidget(TL_NONE, "DebugRTTPanel", "SdkTrays/Picture");
     OverlayContainer* debugRTTContainer = (OverlayContainer*)debugRTTPanel->getOverlayElement();
     mDebugTextureTUS = debugRTTContainer->getMaterial()->getBestTechnique()->getPass(0)->getTextureUnitState(0);
-    //mDebugTextureTUS->setTextureName("CompositorDemo/DebugView");
     debugRTTContainer->setDimensions(128, 128);
     debugRTTContainer->getChild("DebugRTTPanel/PictureFrame")->setDimensions(144, 144);
     debugRTTPanel->hide();

@@ -311,7 +311,7 @@ namespace Ogre {
         // Reset unpack alignment to defaults
         OGRE_CHECK_GL_ERROR(glPixelStorei(GL_UNPACK_ALIGNMENT, 4));
 
-        _createSurfaceList();
+        createSurfaceList();
 
         // Generate mipmaps after all texture levels have been loaded
         // This is required for compressed formats such as DXT
@@ -333,29 +333,10 @@ namespace Ogre {
         }
     }
 
-    void GL3PlusTexture::_createSurfaceList()
+    HardwarePixelBufferPtr GL3PlusTexture::createSurface(uint32 face, uint32 mipmap, uint32 width, uint32 height,
+                                                         uint32 depth)
     {
-        mSurfaceList.clear();
-
-        uint32 depth = mDepth;
-        for (uint8 face = 0; face < getNumFaces(); face++)
-        {
-            uint32 width = mWidth;
-            uint32 height = mHeight;
-
-            for (uint32 mip = 0; mip <= getNumMipmaps(); mip++)
-            {
-                auto buf = std::make_shared<GL3PlusTextureBuffer>(this, face, mip, width, height, depth);
-                mSurfaceList.push_back(buf);
-
-                if (width > 1)
-                    width = width / 2;
-                if (height > 1)
-                    height = height / 2;
-                if (depth > 1 && mTextureType != TEX_TYPE_2D_ARRAY)
-                    depth = depth / 2;
-            }
-        }
+        return std::make_shared<GL3PlusTextureBuffer>(this, face, mipmap, width, height, depth);
     }
 
     void GL3PlusTexture::createShaderAccessPoint(uint bindPoint, TextureAccess access, 
@@ -383,29 +364,6 @@ namespace Ogre {
 
         // TODO
         // * add memory barrier
-        // * material script access (can have multiple instances for a single texture_unit)
-        //     shader_access <binding point> [<access>] [<mipmap level>] [<texture array layer>] [<format>]
-        //     shader_access 2 read_write 0 0 PF_UINT32_R
-        //   binding point - location to bind for shader access; for OpenGL this must be unique and is not related to texture binding point
-        //   access - give the shader read, write, or read_write privileges [default read_write]
-        //   mipmap level - texture mipmap level to use [default 0]
-        //   texture array layer - layer of texture array to use: 'all', or layer number (if not layered, just use 0) [default 0]
-        //   format - texture format to be read in shader; for OpenGL this may be different than bound texture format - not sure about DX11 [default same format as texture]
-        //   Note that for OpenGL the shader access (image) binding point 
-        //   must be specified, it is NOT the same as the texture binding point,
-        //   and it must be unique among textures in this pass.
-        // * enforce binding point uniqueness by checking against 
-        //   image binding point allocation list in GL3PlusTextureManager
-        // * generalize for other render systems by introducing vitual method in Texture 
-        // for (image in mImages)
-        // {
-        // OGRE_CHECK_GL_ERROR(
-        //     glBindImageTexture(
-        //         mImageBind, mTextureID, 
-        //         mMipmapLevel, 
-        //         mLayered.find('all') != str::npos ? GL_TRUE : GL_FALSE, mLayer,
-        //         mImageAccess (READ, WRITE, READ_WRITE), 
-        //         toImageFormat(mFormatInShader))); //GL_RGBA8)); //GL_R32UI)); GL_READ_WRITE
         if (mRenderSystem->hasMinGLVersion(4, 2) || mRenderSystem->checkExtension("GL_ARB_shader_image_load_store"))
         {
             OGRE_CHECK_GL_ERROR(glBindImageTexture(bindPoint, mTextureID, mipmapLevel, isArrayTexture, textureArrayIndex, GlAccess, GlFormat));

@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include "OgreTechnique.h"
 #include "OgreHardwareBufferManager.h"
 #include "OgreRoot.h"
+#include "OgreMaterialManager.h"
 
 namespace Ogre {
 namespace RTShader {
@@ -45,17 +46,13 @@ namespace RTShader {
 String ShaderExInstancedViewports::Type                         = "SGX_InstancedViewports";
 
 //-----------------------------------------------------------------------
-#define SGX_LIB_INSTANCED_VIEWPORTS                         "SampleLib_InstancedViewports"
-#define SGX_FUNC_INSTANCED_VIEWPORTS_TRANSFORM              "SGX_InstancedViewportsTransform"
-#define SGX_FUNC_INSTANCED_VIEWPORTS_DISCARD_OUT_OF_BOUNDS  "SGX_InstancedViewportsDiscardOutOfBounds"
-
-
-//-----------------------------------------------------------------------
 ShaderExInstancedViewports::ShaderExInstancedViewports()
 {
-    mMonitorsCount              = Vector2(1.0, 1.0);            
+    mViewportGrid              = Vector2(1.0, 1.0);
     mMonitorsCountChanged       = true;
     mOwnsGlobalData             = false;
+    mLayeredTarget              = false;
+    mSchemeName                = MSN_SHADERGEN;
 }
 
 //-----------------------------------------------------------------------
@@ -78,188 +75,158 @@ void ShaderExInstancedViewports::copyFrom(const SubRenderState& rhs)
     const ShaderExInstancedViewports& rhsInstancedViewports = static_cast<const ShaderExInstancedViewports&>(rhs);
     
     // Copy all settings that affect this sub render state output code.
-    mMonitorsCount = rhsInstancedViewports.mMonitorsCount;
+    mViewportGrid = rhsInstancedViewports.mViewportGrid;
     mMonitorsCountChanged = rhsInstancedViewports.mMonitorsCountChanged;
+    mLayeredTarget = rhsInstancedViewports.mLayeredTarget;
+    mSchemeName = rhsInstancedViewports.mSchemeName;
 }
 
 //-----------------------------------------------------------------------
 bool ShaderExInstancedViewports::preAddToRenderState( const RenderState* renderState, Pass* srcPass, Pass* dstPass )
 {
     auto matname = srcPass->getParent()->getParent()->getName();
-    return matname.find("SdkTrays") == String::npos && matname.find("Instancing") == String::npos;
+    return matname.find("SdkTrays") == String::npos && matname.find("Instancing") == String::npos && matname.find("ImGui") == String::npos;
 }
 //-----------------------------------------------------------------------
-bool ShaderExInstancedViewports::resolveParameters(ProgramSet* programSet)
+
+bool ShaderExInstancedViewports::createCpuSubPrograms(ProgramSet* programSet)
 {
     Program* vsProgram = programSet->getCpuProgram(GPT_VERTEX_PROGRAM);
     Program* psProgram = programSet->getCpuProgram(GPT_FRAGMENT_PROGRAM);
+
+    bool isHLSL = ShaderGenerator::getSingleton().getTargetLanguage() == "hlsl";
+
+    if (isHLSL)
+    {
+        // set hlsl shader to use row-major matrices instead of column-major.
+        vsProgram->setUseColumnMajorMatrices(false);
+    }
+
+    int numMonitors = mViewportGrid.x * mViewportGrid.y;
+    vsProgram->addPreprocessorDefines(StringUtil::format("NUM_MONITORS=%d", numMonitors));
+
+    vsProgram->addDependency("SampleLib_InstancedViewports");
+
+    if(!mLayeredTarget)
+        psProgram->addDependency("SampleLib_InstancedViewports");
+
     Function* vsMain = vsProgram->getEntryPointFunction();
     Function* psMain = psProgram->getEntryPointFunction();
 
+    if (mLayeredTarget)
+    {
+        mVSInMatrixArray = vsProgram->resolveParameter(GpuProgramParameters::ACT_WORLDVIEWPROJ_MATRIX_ARRAY, numMonitors);
+    }
+    else
+    {
+        mVSInMatrixArray = vsProgram->resolveParameter(GCT_MATRIX_4X4, -1, GPV_GLOBAL, "matrixArray", numMonitors);
+    }
 
     // Resolve vertex shader output position in projective space.
+    auto positionIn = vsMain->resolveInputParameter(Parameter::SPC_POSITION_OBJECT_SPACE);
+    auto vsInMonitorIndex = vsMain->resolveInputParameter(Parameter::SPC_TEXTURE_COORDINATE1, GCT_FLOAT4);
 
-    mVSInPosition = vsMain->resolveInputParameter(Parameter::SPC_POSITION_OBJECT_SPACE);
+    auto originalOutPositionProjectiveSpace = vsMain->resolveOutputParameter(Parameter::SPC_POSITION_PROJECTIVE_SPACE);
+    auto vsOutPositionProjectiveSpace = vsMain->resolveOutputParameter(Parameter::SPC_CUSTOM_CONTENT_BEGIN + 1, GCT_FLOAT4);
 
-    mVSOriginalOutPositionProjectiveSpace = vsMain->resolveOutputParameter(Parameter::SPC_POSITION_PROJECTIVE_SPACE);
-
-#define SPC_POSITION_PROJECTIVE_SPACE_AS_TEXCORD ((Parameter::Content)(Parameter::SPC_CUSTOM_CONTENT_BEGIN + 1))
-
-    mVSOutPositionProjectiveSpace = vsMain->resolveOutputParameter(SPC_POSITION_PROJECTIVE_SPACE_AS_TEXCORD, GCT_FLOAT4);
-
-    // Resolve ps input position in projective space.
-    mPSInPositionProjectiveSpace = psMain->resolveInputParameter(mVSOutPositionProjectiveSpace);
-    // Resolve vertex shader uniform monitors count
-    mVSInMonitorsCount = vsProgram->resolveParameter(GCT_FLOAT2, "monitorsCount");
-
-    // Resolve pixel shader uniform monitors count
-    mPSInMonitorsCount = psProgram->resolveParameter(GCT_FLOAT2, "monitorsCount");
-
-
-    // Resolve the current world & view matrices concatenated   
-    mWorldViewMatrix = vsProgram->resolveParameter(GpuProgramParameters::ACT_WORLDVIEW_MATRIX);
-
-    // Resolve the current projection matrix
-    mProjectionMatrix = vsProgram->resolveParameter(GpuProgramParameters::ACT_PROJECTION_MATRIX);
-    
-    
-#define SPC_MONITOR_INDEX Parameter::SPC_TEXTURE_COORDINATE1
-    // Resolve vertex shader  monitor index
-    mVSInMonitorIndex = vsMain->resolveInputParameter(SPC_MONITOR_INDEX, GCT_FLOAT4);
-
-#define SPC_MATRIX_R0 Parameter::SPC_TEXTURE_COORDINATE2
-#define SPC_MATRIX_R1 Parameter::SPC_TEXTURE_COORDINATE3
-#define SPC_MATRIX_R2 Parameter::SPC_TEXTURE_COORDINATE4
-#define SPC_MATRIX_R3 Parameter::SPC_TEXTURE_COORDINATE5
-
-    // Resolve vertex shader viewport offset matrix
-    mVSInViewportOffsetMatrixR0 = vsMain->resolveInputParameter(SPC_MATRIX_R0, GCT_FLOAT4);
-    mVSInViewportOffsetMatrixR1 = vsMain->resolveInputParameter(SPC_MATRIX_R1, GCT_FLOAT4);
-    mVSInViewportOffsetMatrixR2 = vsMain->resolveInputParameter(SPC_MATRIX_R2, GCT_FLOAT4);
-    mVSInViewportOffsetMatrixR3 = vsMain->resolveInputParameter(SPC_MATRIX_R3, GCT_FLOAT4);
-
-
-    
-    // Resolve vertex shader output monitor index.
-    mVSOutMonitorIndex = vsMain->resolveOutputParameter(SPC_MONITOR_INDEX, GCT_FLOAT4);
-
-    // Resolve ps input monitor index.
-    mPSInMonitorIndex = psMain->resolveInputParameter(mVSOutMonitorIndex);
-
-    return true;
-}
-
-//-----------------------------------------------------------------------
-bool ShaderExInstancedViewports::resolveDependencies(ProgramSet* programSet)
-{
-    Program* vsProgram = programSet->getCpuProgram(GPT_VERTEX_PROGRAM);
-    Program* psProgram = programSet->getCpuProgram(GPT_FRAGMENT_PROGRAM);
-
-    vsProgram->addDependency(SGX_LIB_INSTANCED_VIEWPORTS);
-
-    psProgram->addDependency(SGX_LIB_INSTANCED_VIEWPORTS);
-    
-    return true;
-}
-
-
-//-----------------------------------------------------------------------
-bool ShaderExInstancedViewports::addFunctionInvocations(ProgramSet* programSet)
-{
-    Program* vsProgram = programSet->getCpuProgram(GPT_VERTEX_PROGRAM); 
-    Function* vsMain = vsProgram->getEntryPointFunction();  
-    Program* psProgram = programSet->getCpuProgram(GPT_FRAGMENT_PROGRAM);
-    Function* psMain = psProgram->getEntryPointFunction();  
-    
+    auto vsOutMonitorIndex = vsMain->resolveOutputParameter(Parameter::SPC_TEXTURE_COORDINATE1, GCT_FLOAT4);
 
     // Add vertex shader invocations.
-    if (false == addVSInvocations(vsMain, FFP_VS_TRANSFORM + 1))
-        return false;
+    auto vstage = vsMain->getStage(FFP_VS_TRANSFORM + 1);
 
-
-    // Add pixel shader invocations.
-    if (false == addPSInvocations(psMain, FFP_PS_PRE_PROCESS + 1))
-        return false;
-    
-    return true;
-}
-
-//-----------------------------------------------------------------------
-bool ShaderExInstancedViewports::addVSInvocations( Function* vsMain, const int groupOrder )
-{
-    FunctionAtom* funcInvocation = NULL;
-    
-    funcInvocation = OGRE_NEW FunctionInvocation(SGX_FUNC_INSTANCED_VIEWPORTS_TRANSFORM, groupOrder);
-    funcInvocation->pushOperand(mVSInPosition, Operand::OPS_IN);
-    funcInvocation->pushOperand(mWorldViewMatrix, Operand::OPS_IN);
-    funcInvocation->pushOperand(mProjectionMatrix, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSInViewportOffsetMatrixR0, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSInViewportOffsetMatrixR1, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSInViewportOffsetMatrixR2, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSInViewportOffsetMatrixR3, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSInMonitorsCount, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSInMonitorIndex, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSOriginalOutPositionProjectiveSpace, Operand::OPS_OUT);
-    vsMain->addAtomInstance(funcInvocation);
+    auto layerIdx = vsMain->resolveLocalParameter(GCT_INT1, "layer");
+    vstage.callFunction("SGX_InstancedViewportsGetLayer", vsInMonitorIndex, layerIdx);
+    vstage.callBuiltin("mul", {In(mVSInMatrixArray), At(layerIdx), In(positionIn), Out(originalOutPositionProjectiveSpace)});
 
     // Output position in projective space.
-    funcInvocation = OGRE_NEW AssignmentAtom( groupOrder);
-    funcInvocation->pushOperand(mVSOriginalOutPositionProjectiveSpace, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSOutPositionProjectiveSpace, Operand::OPS_OUT);
-    vsMain->addAtomInstance(funcInvocation);
+    vstage.assign(originalOutPositionProjectiveSpace, vsOutPositionProjectiveSpace);
+
+    if(mLayeredTarget)
+    {
+        auto layer = vsMain->resolveOutputParameter(Parameter::SPC_LAYER);
+        vstage.assign(layerIdx, layer);
+        return true;
+    }
+
+    mPSInMonitorsCount = psProgram->resolveParameter(GCT_FLOAT2, "monitorsCount");
 
     // Output monitor index.
-    funcInvocation = OGRE_NEW AssignmentAtom( groupOrder);
-    funcInvocation->pushOperand(mVSInMonitorIndex, Operand::OPS_IN);
-    funcInvocation->pushOperand(mVSOutMonitorIndex, Operand::OPS_OUT);
-    vsMain->addAtomInstance(funcInvocation);
+    vstage.assign(vsInMonitorIndex, vsOutMonitorIndex);
+
+    // Add pixel shader invocations.
+    auto psInMonitorIndex = psMain->resolveInputParameter(vsOutMonitorIndex);
+    auto psInPositionProjectiveSpace = psMain->resolveInputParameter(vsOutPositionProjectiveSpace);
+    auto fstage = psMain->getStage(FFP_PS_PRE_PROCESS + 1);
+    fstage.callFunction("SGX_InstancedViewportsDiscardOutOfBounds",
+                        {In(mPSInMonitorsCount), In(psInMonitorIndex), In(psInPositionProjectiveSpace)});
 
     return true;
 }
 
-//-----------------------------------------------------------------------
-bool ShaderExInstancedViewports::addPSInvocations( Function* psMain, const int groupOrder )
-{
-    FunctionInvocation* funcInvocation = NULL;
-
-    funcInvocation = OGRE_NEW FunctionInvocation(SGX_FUNC_INSTANCED_VIEWPORTS_DISCARD_OUT_OF_BOUNDS, groupOrder);
-    funcInvocation->pushOperand(mPSInMonitorsCount, Operand::OPS_IN);
-    funcInvocation->pushOperand(mPSInMonitorIndex, Operand::OPS_IN);
-    funcInvocation->pushOperand(mPSInPositionProjectiveSpace, Operand::OPS_IN);
-    
-    psMain->addAtomInstance(funcInvocation);
-
-    return true;
-}
 //-----------------------------------------------------------------------
 void ShaderExInstancedViewports::updateGpuProgramsParams(Renderable* rend, const Pass* pass, const AutoParamDataSource* source, const LightList* pLightList)
 {
+    if(mLayeredTarget)
+        return; // using autoconstant
+
     if (mMonitorsCountChanged)
     {
-        mVSInMonitorsCount->setGpuParameter(mMonitorsCount + Vector2(0.0001, 0.0001));
-        mPSInMonitorsCount->setGpuParameter(mMonitorsCount + Vector2(0.0001, 0.0001));
+        mPSInMonitorsCount->setGpuParameter(mViewportGrid);
 
         mMonitorsCountChanged = false;
-    }   
+    }
+
+    Matrix4 shift = Matrix4::IDENTITY;
+    shift.setScale(Vector3(1./mViewportGrid[0], 1./mViewportGrid[1], 1));
+
+    std::vector<Matrix4> matrixArray;
+    Vector2 monitorCount = mViewportGrid;
+
+    int camIdx = 0;
+    for (int x = 0 ; x < monitorCount.x ; x++)
+        for (int y = 0 ; y < monitorCount.y ; y++)
+        {
+            auto worldViewProjectionMatrix = source->getWorldViewProjMatrix(camIdx++);
+
+            shift.setTrans(Vector3((2*x - 1)/monitorCount[0], (2*y - 1)/monitorCount[1], 0));
+            matrixArray.push_back(shift * worldViewProjectionMatrix);
+        }
+
+    // Update the matrix array
+    mVSInMatrixArray->setGpuParameter((Real*)matrixArray.data(), matrixArray.size(), 16);
 }
 //-----------------------------------------------------------------------
+
+void ShaderExInstancedViewports::setParameter(const String& name, const Any& value)
+{
+    if (name == "viewportGrid")
+    {
+        setMonitorsCount(any_cast<Vector2>(value));
+        return;
+    }
+
+    if (name == "layeredTarget")
+    {
+        mLayeredTarget = any_cast<bool>(value);
+        return;
+    }
+
+    if (name == "schemeName")
+    {
+        mSchemeName = any_cast<String>(value);
+        return;
+    }
+
+    SubRenderState::setParameter(name, value);
+}
+
 void ShaderExInstancedViewports::setMonitorsCount( const Vector2 monitorCount )
 {
-    mMonitorsCount = monitorCount;
+    mViewportGrid = monitorCount;
     mMonitorsCountChanged = true;
 
     Ogre::VertexDeclaration* vertexDeclaration = Ogre::HardwareBufferManager::getSingleton().createVertexDeclaration();
-    size_t offset = 0;
-    offset = vertexDeclaration->getVertexSize(0);
-    vertexDeclaration->addElement(0, offset, Ogre::VET_FLOAT4, Ogre::VES_TEXTURE_COORDINATES, 1);
-    offset = vertexDeclaration->getVertexSize(0);
-    vertexDeclaration->addElement(0, offset, Ogre::VET_FLOAT4, Ogre::VES_TEXTURE_COORDINATES, 2);
-    offset = vertexDeclaration->getVertexSize(0);
-    vertexDeclaration->addElement(0, offset, Ogre::VET_FLOAT4, Ogre::VES_TEXTURE_COORDINATES, 3);
-    offset = vertexDeclaration->getVertexSize(0);
-    vertexDeclaration->addElement(0, offset, Ogre::VET_FLOAT4, Ogre::VES_TEXTURE_COORDINATES, 4);
-    offset = vertexDeclaration->getVertexSize(0);
-    vertexDeclaration->addElement(0, offset, Ogre::VET_FLOAT4, Ogre::VES_TEXTURE_COORDINATES, 5);
+    vertexDeclaration->addElement(0, 0, Ogre::VET_FLOAT4, Ogre::VES_TEXTURE_COORDINATES, 1);
 
     Ogre::HardwareVertexBufferSharedPtr vbuf =
         Ogre::HardwareBufferManager::getSingleton().createVertexBuffer(
@@ -267,50 +234,19 @@ void ShaderExInstancedViewports::setMonitorsCount( const Vector2 monitorCount )
     vbuf->setInstanceDataStepRate(1);
     vbuf->setIsInstanceData(true);
 
-    float * buf = (float *)vbuf->lock(Ogre::HardwareBuffer::HBL_DISCARD);
+    Vector4f* buf = (Vector4f *)vbuf->lock(Ogre::HardwareBuffer::HBL_DISCARD);
+    int i = 0;
     for (int x = 0 ; x < monitorCount.x ; x++)
         for (int y = 0 ; y < monitorCount.y ; y++)
         {
-            *buf = x; buf++;
-            *buf = y; buf++;
-            *buf = 0; buf++;
-            *buf = 0; buf++;
-
-            Ogre::Quaternion q;
-            Ogre::Radian angle = Ogre::Degree(90 / ( monitorCount.x *  monitorCount.y) * (x + y * monitorCount.x) );
-            q.FromAngleAxis(angle,Ogre::Vector3::UNIT_Y);
-            q.normalise();
-            Ogre::Matrix3 rotMat;
-            q.ToRotationMatrix(rotMat);
-
-            *buf = rotMat.GetColumn(0).x; buf++;
-            *buf = rotMat.GetColumn(0).y; buf++;
-            *buf = rotMat.GetColumn(0).z; buf++;
-            *buf = x * -20; buf++;
-
-            *buf = rotMat.GetColumn(1).x; buf++;
-            *buf = rotMat.GetColumn(1).y; buf++;
-            *buf = rotMat.GetColumn(1).z; buf++;
-            *buf = 0; buf++;
-
-            *buf = rotMat.GetColumn(2).x; buf++;
-            *buf = rotMat.GetColumn(2).y; buf++;
-            *buf = rotMat.GetColumn(2).z; buf++;
-            *buf =  y * 20; buf++;
-
-            *buf = 0; buf++;
-            *buf = 0; buf++;
-            *buf = 0; buf++;
-            *buf = 1; buf++;
+            *buf++ = Vector4f(x, y, i++, 0);
         }
     vbuf->unlock();
 
     mOwnsGlobalData = true;
 
     auto rs = Ogre::Root::getSingleton().getRenderSystem();
-    rs->setGlobalInstanceVertexBuffer(vbuf);
-    rs->setGlobalInstanceVertexDeclaration(vertexDeclaration);
-    rs->setGlobalInstanceCount(monitorCount.x * monitorCount.y);
+    rs->enableSchemeInstancing(mSchemeName, vbuf, vertexDeclaration, monitorCount.x * monitorCount.y);
 }
 ShaderExInstancedViewports::~ShaderExInstancedViewports()
 {
@@ -318,29 +254,13 @@ ShaderExInstancedViewports::~ShaderExInstancedViewports()
         return;
 
     auto rs = Ogre::Root::getSingleton().getRenderSystem();
-    if (auto decl = rs->getGlobalInstanceVertexDeclaration())
+
+    if (auto decl = rs->getSchemeInstancingData(rs->_getDefaultViewportMaterialScheme()).vertexDecl)
     {
         Ogre::HardwareBufferManager::getSingleton().destroyVertexDeclaration(decl);
     }
 
-    rs->setGlobalInstanceVertexDeclaration(NULL);
-    rs->setGlobalInstanceCount(1);
-    rs->setGlobalInstanceVertexBuffer( NULL );
-}
-
-//-----------------------------------------------------------------------
-SubRenderState* ShaderExInstancedViewportsFactory::createInstance(ScriptCompiler* compiler, 
-                                                         PropertyAbstractNode* prop, Pass* pass, SGScriptTranslator* translator)
-{
-    SubRenderState* subRenderState = SubRenderStateFactory::createInstance();
-    return subRenderState;                              
-}
-//-----------------------------------------------------------------------
-void ShaderExInstancedViewportsFactory::writeInstance(MaterialSerializer* ser, 
-                                             SubRenderState* subRenderState, 
-                                             Pass* srcPass, Pass* dstPass)
-{
-
+    rs->disableSchemeInstancing(mSchemeName);
 }
 
 //-----------------------------------------------------------------------

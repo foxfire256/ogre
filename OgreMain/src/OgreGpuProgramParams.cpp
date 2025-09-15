@@ -29,7 +29,6 @@ Copyright (c) 2000-2014 Torus Knot Software Ltd
 #include "OgreGpuProgramParams.h"
 #include "OgreGpuProgramManager.h"
 #include "OgreDualQuaternion.h"
-#include "OgreRenderTarget.h"
 
 namespace Ogre
 {
@@ -69,6 +68,7 @@ namespace Ogre
         AutoConstantDefinition(ACT_INVERSE_WORLDVIEWPROJ_MATRIX,       "inverse_worldviewproj_matrix",      16, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_TRANSPOSE_WORLDVIEWPROJ_MATRIX,     "transpose_worldviewproj_matrix",    16, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_INVERSE_TRANSPOSE_WORLDVIEWPROJ_MATRIX, "inverse_transpose_worldviewproj_matrix", 16, ET_REAL, ACDT_NONE),
+        AutoConstantDefinition(ACT_WORLDVIEWPROJ_MATRIX_ARRAY,          "worldviewproj_matrix_array",        16, ET_REAL, ACDT_INT),
 
         AutoConstantDefinition(ACT_RENDER_TARGET_FLIPPING,          "render_target_flipping",         1, ET_REAL, ACDT_NONE),
         AutoConstantDefinition(ACT_VERTEX_WINDING,          "vertex_winding",         1, ET_REAL, ACDT_NONE),
@@ -1121,6 +1121,7 @@ namespace Ogre
         case ACT_INVERSE_TRANSPOSE_WORLDVIEW_MATRIX:
         case ACT_NORMAL_MATRIX:
         case ACT_WORLDVIEWPROJ_MATRIX:
+        case ACT_WORLDVIEWPROJ_MATRIX_ARRAY:
         case ACT_INVERSE_WORLDVIEWPROJ_MATRIX:
         case ACT_TRANSPOSE_WORLDVIEWPROJ_MATRIX:
         case ACT_INVERSE_TRANSPOSE_WORLDVIEWPROJ_MATRIX:
@@ -1972,6 +1973,13 @@ namespace Ogre
                 case ACT_INVERSE_TRANSPOSE_WORLDVIEWPROJ_MATRIX:
                     _writeRawConstant(ac.physicalIndex, source->getInverseTransposeWorldViewProjMatrix(),ac.elementCount);
                     break;
+                case ACT_WORLDVIEWPROJ_MATRIX_ARRAY:
+                    for (size_t l = 0; l < ac.data; ++l)
+                    {
+                        _writeRawConstant(ac.physicalIndex + l*sizeof(Matrix4),
+                                          source->getWorldViewProjMatrix(l),ac.elementCount);
+                    }
+                    break;
                 case ACT_CAMERA_POSITION_OBJECT_SPACE:
                     _writeRawConstant(ac.physicalIndex, source->getCameraPositionObjectSpace(), ac.elementCount);
                     break;
@@ -2214,13 +2222,15 @@ namespace Ogre
         return def->physicalIndex + offset * def->elementSize;
     }
 
-    void GpuProgramParameters::setNamedConstant(const String& name, Real val)
+    void GpuProgramParameters::setNamedConstant(const String& name, float val)
     {
         // look up, and throw an exception if we're not ignoring missing
         const GpuConstantDefinition* def =
             _findNamedConstantDefinition(name, !mIgnoreMissingParams);
-        if (def)
-            _writeRawConstant(withArrayOffset(def, name), val);
+        if (!def)
+            return;
+        OgreAssert(def->isFloat(), "Constant type mismatch");
+        _writeRawConstant(withArrayOffset(def, name), val);
     }
     //---------------------------------------------------------------------------
     void GpuProgramParameters::setNamedConstant(const String& name, int val)
@@ -2232,9 +2242,13 @@ namespace Ogre
             return;
 
         if(def->isSampler())
+        {
             _writeRegisters(withArrayOffset(def, name), &val, 1);
-        else
-            _writeRawConstant(withArrayOffset(def, name), val);
+            return;
+        }
+
+        OgreAssert(def->isInt(), "Constant type mismatch");
+        _writeRawConstant(withArrayOffset(def, name), val);
     }
     //---------------------------------------------------------------------------
     void GpuProgramParameters::setNamedConstant(const String& name, uint val)
@@ -2242,8 +2256,11 @@ namespace Ogre
         // look up, and throw an exception if we're not ignoring missing
         const GpuConstantDefinition* def =
             _findNamedConstantDefinition(name, !mIgnoreMissingParams);
-        if (def)
-            _writeRawConstant(withArrayOffset(def, name), val);
+        if (!def)
+            return;
+
+        OgreAssert(def->isUnsignedInt(), "Constant type mismatch");
+        _writeRawConstant(withArrayOffset(def, name), val);
     }
     //---------------------------------------------------------------------------
     void GpuProgramParameters::setNamedConstant(const String& name, const Vector4& vec)

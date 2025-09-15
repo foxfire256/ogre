@@ -53,7 +53,7 @@ We will implement such a listener for the GBuffer scheme. It is GBufferSchemeHan
 The GBufferSchemeHandlers works like this :
 
 ### Inspect the classic technique
-For each pass in the technique that would have been used normally, the GBufferSchemeHandler::inspectPass is called, inspects the pass, and returns the PassProperties - does this pass have a texture? a normal map? is it skinned? tranpsarent? Etc. The PassProperties (should) contain all the information required to build a GBuffer technique for an object.
+For each pass in the technique that would have been used normally, the GBufferSchemeHandler::inspectPass is called, inspects the pass, and returns the PassProperties - does this pass have a texture? a normal map? is it skinned? transparent? Etc. The PassProperties (should) contain all the information required to build a GBuffer technique for an object.
 
 ### Generate the G-Buffer technique
 After a pass has been inspected and understood, the next stage is to generate the G-Buffer-writing technique. This is done using the RTSS GBuffer lighting stage. This greatly reduces the number of shaders that you need to manage when using deferred shading, as most of them are created on the fly. Here is an example of what they look like :
@@ -129,7 +129,7 @@ Using tools like [RenderDoc](https://renderdoc.org/), we can see the texture bei
 
 Note that nothing has been written to the final output yet and that two output textures are being written to (see right hand side).
 
-# Lighting the scene {#lighting}
+# Lighting the scene
 In the GBuffer compositor, we built the G-Buffer for the current frame. It is now the time to use it to calculate the final lighting of the scene. This is what the compositor looks like :
 
 @snippet Samples/Media/DeferredShadingMedia/deferred.compositor showlit

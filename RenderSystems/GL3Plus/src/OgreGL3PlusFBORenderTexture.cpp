@@ -38,10 +38,10 @@ Copyright (c) 2000-2014 Torus Knot Software Ltd
 namespace Ogre {
 
     GL3PlusFBORenderTexture::GL3PlusFBORenderTexture(
-        GL3PlusFBOManager *manager, const String &name,
+        const String &name,
         const GLSurfaceDesc &target, bool writeGamma, uint fsaa):
         GLRenderTexture(name, target, writeGamma, fsaa),
-        mFB(manager, fsaa)
+        mFB(fsaa)
     {
         // Bind target to surface 0 and initialise
         mFB.bindSurface(0, target);
@@ -83,12 +83,6 @@ namespace Ogre {
             mFB.attachDepthBuffer( depthBuffer );
 
         return result;
-    }
-
-    void GL3PlusFBORenderTexture::detachDepthBuffer()
-    {
-        mFB.detachDepthBuffer();
-        GLRenderTexture::detachDepthBuffer();
     }
 
     void GL3PlusFBORenderTexture::_detachDepthBuffer()
@@ -142,11 +136,6 @@ namespace Ogre {
         {
             LogManager::getSingleton().logWarning("GL3PlusFBOManager destructor called, but not all renderbuffers were released.");
         }
-    }
-
-    GL3PlusStateCacheManager* GL3PlusFBOManager::getStateCacheManager()
-    {
-        return mRenderSystem->_getStateCacheManager();
     }
 
     void GL3PlusFBOManager::_createTempFramebuffer(GLuint internalFormat, GLuint fmt, GLenum dataType, GLuint &fb, GLuint &tid)
@@ -465,37 +454,17 @@ namespace Ogre {
     GL3PlusFBORenderTexture *GL3PlusFBOManager::createRenderTexture(const String &name,
                                                                     const GLSurfaceDesc &target, bool writeGamma, uint fsaa)
     {
-        GL3PlusFBORenderTexture *retval = new GL3PlusFBORenderTexture(this, name, target, writeGamma, fsaa);
+        GL3PlusFBORenderTexture *retval = new GL3PlusFBORenderTexture(name, target, writeGamma, fsaa);
         return retval;
     }
 
-    GLSurfaceDesc GL3PlusFBOManager::requestRenderBuffer(GLenum format, uint32 width, uint32 height, uint fsaa)
+    GLSurfaceDesc GL3PlusFBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa)
     {
         GLSurfaceDesc retval;
-        retval.buffer = 0; // Return 0 buffer if GL_NONE is requested
-        if(format != GL_NONE)
-        {
-            RBFormat key(format, width, height, fsaa);
-            RenderBufferMap::iterator it = mRenderBufferMap.find(key);
-            if(it != mRenderBufferMap.end())
-            {
-                retval.buffer = it->second.buffer;
-                retval.zoffset = 0;
-                retval.numSamples = fsaa;
-                // Increase refcount
-                ++it->second.refcount;
-            }
-            else
-            {
-                // New one
-                GL3PlusRenderBuffer *rb = new GL3PlusRenderBuffer(format, width, height, fsaa);
-                mRenderBufferMap[key] = RBRef(rb);
-                retval.buffer = rb;
-                retval.zoffset = 0;
-                retval.numSamples = fsaa;
-            }
-        }
-        //        std::cerr << "Requested renderbuffer with format " << std::hex << format << std::dec << " of " << width << "x" << height << " :" << retval.buffer << std::endl;
+        auto* rb = new GL3PlusRenderBuffer(format, width, height, fsaa);
+        retval.buffer = rb;
+        retval.zoffset = 0;
+        retval.numSamples = fsaa;
         return retval;
     }
 

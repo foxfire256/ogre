@@ -31,9 +31,9 @@ THE SOFTWARE.
 
 namespace Ogre {
 
-    GLES2FBOMultiRenderTarget::GLES2FBOMultiRenderTarget(GLES2FBOManager *manager, const String &name):
+    GLES2FBOMultiRenderTarget::GLES2FBOMultiRenderTarget(const String &name):
         MultiRenderTarget(name),
-        fbo(manager, 0 /* TODO: multisampling on MRTs? */)
+        fbo(0 /* TODO: multisampling on MRTs? */)
     {
     }
     GLES2FBOMultiRenderTarget::~GLES2FBOMultiRenderTarget()
@@ -80,12 +80,6 @@ namespace Ogre {
             fbo.attachDepthBuffer( depthBuffer );
 
         return result;
-    }
-    //-----------------------------------------------------------------------------
-    void GLES2FBOMultiRenderTarget::detachDepthBuffer()
-    {
-        fbo.detachDepthBuffer();
-        MultiRenderTarget::detachDepthBuffer();
     }
     //-----------------------------------------------------------------------------
     void GLES2FBOMultiRenderTarget::_detachDepthBuffer()

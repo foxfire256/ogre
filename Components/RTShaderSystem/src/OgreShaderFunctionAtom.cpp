@@ -37,20 +37,20 @@ Operand::Operand(ParameterPtr parameter, OpSemantic opSemantic, OpMask opMask, u
         parameter->setUsed(true);
 }
 //-----------------------------------------------------------------------------
-Operand::Operand(const Operand& other) 
+Operand::Operand(const Operand& other)
 {
     *this = other;
 }
 //-----------------------------------------------------------------------------
 Operand& Operand::operator= (const Operand & other)
 {
-    if (this != &other) 
+    if (this != &other)
     {
         mParameter = other.mParameter;
         mSemantic = other.mSemantic;
         mMask = other.mMask;
         mIndirectionLevel = other.mIndirectionLevel;
-    }       
+    }
     return *this;
 }
 //-----------------------------------------------------------------------------
@@ -117,7 +117,7 @@ int Operand::getFloatCount(int mask)
         {
             floatCount++;
 
-        }           
+        }
         mask = mask >> 1;
     }
 
@@ -158,9 +158,9 @@ FunctionInvocation::FunctionInvocation(const FunctionInvocation& other) :
 {
     mFunctionName = other.mFunctionName;
     mGroupExecutionOrder = other.mGroupExecutionOrder;
-    
-    for ( OperandVector::const_iterator it = other.mOperands.begin(); it != other.mOperands.end(); ++it)
-        mOperands.push_back(Operand(*it));
+
+    for (auto& o : other.mOperands)
+        mOperands.push_back(Operand(o));
 }
 
 //-----------------------------------------------------------------------
@@ -420,6 +420,9 @@ void SampleTextureAtom::writeSourceCode(std::ostream& os, const String& targetLa
         break;
     case GCT_SAMPLERCUBE:
         os << "Cube";
+        break;
+    case GCT_SAMPLER2DARRAY:
+        os << "2DArray";
         break;
     default:
         OGRE_EXCEPT(Exception::ERR_INVALID_STATE, "unknown sampler");

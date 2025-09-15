@@ -106,10 +106,10 @@ For modularity %Ogre supports the non-standard <tt>\#include <something.glsl></t
 Vertex attributes must be declared in the shader, for the vertex data bound to it by Ogre.
 
 ```cpp
-// legacy GLSL syntax
+// GL2 compatible syntax; attribute data is bound by attribute name
 attribute vec4 vertex;
 
-// modern GLSL syntax with explicit layout qualifier
+// Attribute data bound by explicit location (requires GL3+)
 layout(location = 0) in vec4 vertex;
 ```
 
@@ -129,20 +129,30 @@ refer to the following table for the location indices and names to use:
 
 @note uv6 and uv7 share attributes with tangent and binormal respectively so cannot both be present.
 
+## Buffers in Mesh Shaders {#GLSL-Mesh-Shaders}
+
+With mesh shaders the input assembly stage is skipped and hence the vertex attributes are not available. Instead, %Ogre will bind the vertex buffers as SSBOs to a binding point defined by the Ogre::VertexBufferBinding index, offset by 3.
+
+In the shader you can access the buffer as follows:
+
+@snippet Samples/Media/materials/programs/GLSL400/MeshProgram.glsl vertexbuffer
+
 ## Binding Texture Samplers {#GLSL-Texture-Samplers}
 
 To bind samplers to texture unit indices from the material scripts, you can either use the explicit binding with GL4.2+ or
 set the sampler via a `int` type named parameter.
 
 ```cpp
-// modern (GL4.2+) syntax with explicit binding
+// Explicit binding location (requires OpenGL 4.2+)
 layout(binding = 0) uniform sampler2D diffuseMap;
 
-// legacy syntax
+// Compatible syntax; binding is managed via the material script
 uniform sampler2D diffuseMap;
 ```
 
-Binding the sampler in material script:
+@note as we cannot detect the presence of explicit binding, you must add the `has_sampler_binding true` option to the program definition, so your locations are not overriden
+
+Binding the sampler in material script is done as:
 
 ```cpp
 material exampleGLSLTexturing
@@ -188,6 +198,18 @@ param_named skewMatrix float4 0.5 0 -0.5 1.0
 This means that `mat[0]` is the first column in GLSL, but the first row in HLSL and %Ogre. %Ogre takes care of transposing square matrices before uploading them with GLSL, so matrix-vector multiplication `M*v` just works and `mat[0]` will return the same data.
 However, with non-square matrices transposing would change their GLSL type from e.g. `mat2x4` (two columns, four rows) to `mat4x2` (two rows, four columns) and consequently what `mat[0]` would return. Therefore %Ogre just passes such matrices unchanged and you have to handle this case (notably in skinning) yourself by either transposing the matrix in the shader or column-wise access.
 
+## Uniform Buffers {#Uniform-Buffers}
+
+If supported by the RenderSystem, you can opt-in to use uniform buffers for parameter storage.
+This is done by declaring the parameters in a uniform block named @c OgreUniforms
+
+```cpp
+layout(std140, row_major) uniform OgreUniforms
+{
+    mat4 worldTransform;
+}
+```
+
 ## Transform Feedback Varyings {#Transform-Feedback-Varyings}
 
 Similarly to vertex attributes, the transform feedback varyings are bound by name.
@@ -206,15 +228,15 @@ The available varyings are:
 
 The following features are only available when using the legacy OpenGL profile. Notably they are not available with GL3+ or GLES2.
 
-### Accessing OpenGL state
-GLSL can access most of the GL states directly so you do not need to pass these states through [param\_named\_auto](#param_005fnamed_005fauto) in the material script. This includes lights, material state, and all the matrices used in the openGL state i.e. model view matrix, worldview projection matrix etc.
+### OpenGL state
+GLSL can access most of the GL states directly so you do not need to pass these states through [param_named_auto](#param_005fnamed_005fauto) in the material script. This includes lights, material state, and all the matrices used in the openGL state i.e. model view matrix, worldview projection matrix etc.
 
-### Access to built-in attributes
+### Built-in attributes
 GLSL natively supports automatic binding of the most common incoming per-vertex attributes (e.g. `gl_Vertex`, `gl_Normal`, `gl_MultiTexCoord0` etc)
 as described in section 7.3 of the GLSL manual.
 There are some drivers that do not behave correctly when mixing built-in vertex attributes like `gl_Normal` and custom vertex attributes, so for maximum compatibility you should use all custom attributes
 
-### Geometry shader specification
+### Geometry shader in/ out
 GLSL allows the same shader to run on different types of geometry primitives. In order to properly link the shaders together, you have to specify which primitives it will receive as input, which primitives it will emit and how many vertices a single run of the shader can generate. The GLSL geometry\_program definition requires three additional parameters
 
 @param input\_operation\_type
@@ -238,6 +260,25 @@ geometry_program Ogre/GPTest/Swizzle_GP_GLSL glsl
 ```
 
 With GL3+ these values are specified using the `layout` modifier.
+
+### Multi module shaders
+
+The `attach` keyword allows creating GLSL shaders from multiple shader modules of the same type. The referencing shader has to forward-declare the functions it intends to use
+
+@deprecated The @c attach keyword for multi-module shaders is not supported on OpenGL ES and therefore deprecated in favor of the @c \#include directive
+
+```cpp
+vertex_program myExternalGLSLFunction glsl
+{
+    source myExternalGLSLfunction.vert
+}
+
+vertex_program myGLSLVertexProgram glsl
+{
+    source myGLSLfunction.vert
+    attach myExternalGLSLFunction
+}
+```
 
 # Cg programs {#Cg}
 
@@ -290,26 +331,10 @@ Set the optimisation level, which can be one of ’default’, ’none’, ’0�
 
 </dd> </dl>
 
-### Multi module shaders
+# Assembler Shaders {#Assembler-Shaders}
 
-The `attach` keyword allows creating GLSL shaders from multiple shader modules of the same type. The referencing shader has to forward-declare the functions it intends to use
-
-@deprecated The @c attach keyword for multi-module shaders is not supported on OpenGL ES and therefore deprecated in favor of the @c \#include directive
-
-```cpp
-vertex_program myExternalGLSLFunction glsl
-{
-    source myExternalGLSLfunction.vert
-}
-
-vertex_program myGLSLVertexProgram glsl
-{
-    source myGLSLfunction.vert
-    attach myExternalGLSLFunction
-}
-```
-
-# Assembler Shaders
+You can specify assembly shaders directly as the syntax code of the program, if you compiled them ahead of time.
+Alternatively, you can use the syntax code to specify the @c target of a high-level shader, which will be compiled on-the-fly to the specified syntax.
 
 The current supported syntaxes are:
 
@@ -328,19 +353,24 @@ SPIRV variant exposed by ARB_gl_spirv
 
 These is are the DirectX vertex shader assembler syntaxes.
 
+@note on D3D11 the following targets will alias to @c vs_4_0 levels so you can use them for both D3D9 and D3D11.
+- @c vs_2_0 to @c vs_4_0_level_9_1
+- @c vs_2_a to @c vs_4_0_level_9_3
+- @c vs_3_0 to @c vs_4_0
+
 </dd> <dt>arbvp1</dt> <dd>
 
 This is the OpenGL standard assembler format for vertex programs. It’s roughly equivalent to DirectX vs\_1\_1.
 
 </dd> <dt>vp*</dt> <dd>
 
-These are nVidia-specific OpenGL vertex shader syntax which is a superset of vs_1_1_, that have otherwise no equivalent in OpenGL.
+These are nVidia-specific OpenGL vertex shader syntax which is a superset of vs_1_1, that have otherwise no equivalent in OpenGL.
 
 </dd>
 <dt>ps_*</dt> <dd>
 
 DirectX pixel shader (i.e. fragment program) assembler syntax.
-@note for ATI 8500, 9000, 9100, 9200 hardware, these profiles can also be used in OpenGL. The ATI 8500 to 9200 do not support arbfp1 but do support atifs extension in OpenGL which is very similar in function to ps\_1\_4 in DirectX. Ogre has a built in ps\_1\_x to atifs compiler that is automatically invoked when ps\_1\_x is used in OpenGL on ATI hardware.
+@note for ATI 8500, 9000, 9100, 9200 hardware, these profiles can also be used in OpenGL. The ATI 8500 to 9200 do not support arbfp1 but do support atifs extension in OpenGL which is very similar in function to ps\_1\_4 in DirectX. %Ogre has a built in ps\_1\_x to atifs compiler that is automatically invoked when ps\_1\_x is used in OpenGL on ATI hardware.
 
 </dd>
 <dt>arbfp1</dt> <dd>
@@ -366,7 +396,7 @@ You can get a definitive list of the syntaxes supported by the current card by c
 
 ## Specifying Named Constants {#Specifying-Named-Constants-for-Assembler-Shaders}
 
-Assembler shaders don’t have named constants (also called uniform parameters) because the language does not support them - however if you for example decided to precompile your shaders from a high-level language down to assembler for performance or obscurity, you might still want to use the named parameters. Well, you actually can - GpuNamedConstants which contains the named parameter mappings has a ’save’ method which you can use to write this data to disk, where you can reference it later using the manual\_named\_constants directive inside your assembler program declaration, e.g.
+Assembler shaders don’t have named constants (also called uniform parameters) because the language does not support them - however if you for example decided to precompile your shaders from a high-level language down to assembler for performance or obscurity, you might still want to use the named parameters. Well, you actually can - Ogre::GpuNamedConstants which contains the named parameter mappings has a ’save’ method which you can use to write this data to disk, where you can reference it later using the @c manual_named_constants directive inside your assembler program declaration, e.g.
 
 ```cpp
 vertex_program myVertexProgram spirv
@@ -390,7 +420,7 @@ fragment_program myFragmentShader glsl glsles
 }
 ```
 
-If you use the built-in defines like @c OGRE_HLSL, you can even write programs compatible with both HLSL and GLSL. In fact, you can use `#include <OgreUnifiedShader.h>` in the shader which provides cross-language macros to help with this.
+You can even write programs compatible with both HLSL and GLSL by using `#include <OgreUnifiedShader.h>` in the shader which provides cross-language macros to help with this. See @ref Cross-platform-Shaders for more information.
 
 # Unified High-level Programs {#Unified-High_002dlevel-Programs}
 
@@ -537,11 +567,11 @@ At runtime, when myVertexProgram or myFragmentProgram are used, OGRE automatical
 
 Parameters can be specified using one of 4 commands as shown below. The same syntax is used whether you are defining a parameter just for this particular use of the program, or when specifying the @ref Default-Program-Parameters. Parameters set in the specific use of the program override the defaults.
 
--   [param\_indexed](#param_005findexed)
--   [param\_indexed\_auto](#param_005findexed_005fauto)
--   [param\_named](#param_005fnamed)
--   [param\_named\_auto](#param_005fnamed_005fauto)
--   [shared\_params\_ref](#shared_005fparams_005fref)
+-   [param_indexed](#param_005findexed)
+-   [param_indexed_auto](#param_005findexed_005fauto)
+-   [param_named](#param_005fnamed)
+-   [param_named_auto](#param_005fnamed_005fauto)
+-   [shared_params_ref](#shared_005fparams_005fref)
 
 <a name="param_005findexed"></a><a name="param_005findexed-1"></a>
 
@@ -575,7 +605,7 @@ Format: param\_indexed\_auto &lt;index&gt; &lt;autoConstType&gt; &lt;extraInfo&g
 Example: param\_indexed\_auto 0 worldviewproj\_matrix
 
 @param index
-has the same meaning as [param\_indexed](#param_005findexed); note this time you do not have to specify the size of the parameter because the engine knows this already. In the example, the world/view/projection matrix is being used so this is implicitly a matrix4x4.
+has the same meaning as [param_indexed](#param_005findexed); note this time you do not have to specify the size of the parameter because the engine knows this already. In the example, the world/view/projection matrix is being used so this is implicitly a matrix4x4.
 
 @param autoConstType, extraInfo
 is one of Ogre::GpuProgramParameters::AutoConstantType without the `ACT_` prefix. E.g. `ACT_WORLD_MATRIX` becomes `world_matrix`.
@@ -603,7 +633,7 @@ Format: param\_named\_auto &lt;name&gt; &lt;autoConstType&gt; &lt;extraInfo&gt;
 @par
 Example: param\_named\_auto worldViewProj worldviewproj\_matrix
 
-The allowed @c autoConstType and the meaning of @c extraInfo are detailed in [param\_indexed\_auto](#param_005findexed_005fauto).
+The allowed @c autoConstType and the meaning of @c extraInfo are detailed in [param_indexed_auto](#param_005findexed_005fauto).
 
 <a name="shared_005fparams_005fref"></a><a name="shared_005fparams_005fref-1"></a>
 
@@ -629,7 +659,7 @@ shared_params YourSharedParamsName
 }
 ```
 
-As you can see, you need to use the keyword ’shared\_params’ and follow it with the name that you will use to identify these shared parameters. Inside the curly braces, you can define one parameter per line, in a way which is very similar to the [param\_named](#param_005fnamed) syntax. The definition of these lines is:
+As you can see, you need to use the keyword ’shared\_params’ and follow it with the name that you will use to identify these shared parameters. Inside the curly braces, you can define one parameter per line, in a way which is very similar to the [param_named](#param_005fnamed) syntax. The definition of these lines is:
 @par
 Format: shared\_param\_named &lt;param\_name&gt; &lt;param\_type&gt; \[&lt;\[array\_size\]&gt;\] \[&lt;initial\_values&gt;\]
 
@@ -638,7 +668,7 @@ Format: shared\_param\_named &lt;param\_name&gt; &lt;param\_type&gt; \[&lt;\[arr
 @param array_size allows you to define arrays of param\_type should you wish, and if present must be a number enclosed in square brackets (and note, must be separated from the param\_type with whitespace).
 @param initial_values If you wish, you can also initialise the parameters by providing a list of values.
 
-Once you have defined the shared parameters, you can reference them inside default\_params and params blocks using [shared\_params\_ref](#shared_005fparams_005fref). You can also obtain a reference to them in your code via Ogre::GpuProgramManager::getSharedParameters, and update the values for all instances using them.
+Once you have defined the shared parameters, you can reference them inside default\_params and params blocks using [shared_params_ref](#shared_005fparams_005fref). You can also obtain a reference to them in your code via Ogre::GpuProgramManager::getSharedParameters, and update the values for all instances using them.
 
 ## Hardware Support
 
@@ -707,7 +737,7 @@ material myShadowReceiverMaterial
 }
 ```
 
-For the purposes of writing the alternate program, there is an automatic parameter binding of @c texture_worldviewproj_matrix which provides the program with texture projection parameters. The vertex program should do it’s normal vertex processing, and generate texture coordinates using this matrix and place them in texture coord sets 0 and 1, since some shadow techniques use 2 texture units. The colour of the vertices output by this vertex program must always be white, so as not to affect the final colour of the rendered shadow.
+For the purposes of writing the alternate program, there is an automatic parameter binding of @c texture_worldviewproj_matrix which provides the program with texture projection parameters. The vertex program should do its normal vertex processing, and generate texture coordinates using this matrix and place them in texture coord sets 0 and 1, since some shadow techniques use 2 texture units. The colour of the vertices output by this vertex program must always be white, so as not to affect the final colour of the rendered shadow.
 
 When using additive texture shadows, the @c shadow_receiver_material replaces the lighting render, so if you perform any fragment program lighting you also need to pull in a custom fragment program:
 
@@ -858,6 +888,7 @@ The following defines are available:
 - The current shading language and native version: e.g. @c OGRE_GLSL=120, @c OGRE_HLSL=3
 - The current shader type: e.g. @c OGRE_VERTEX_SHADER, @c OGRE_FRAGMENT_SHADER
 - Whether @ref reversed-depth is enabled: @c OGRE_REVERSED_Z
+- @c OGRE_NATIVE_GLSL_VERSION_DIRECTIVE which expands to e.g. `#version 300 es` for GLSL programs and nothing on other rendersystems.
 
 # Cross-platform macros {#OgreUnifiedShader}
 
@@ -875,9 +906,10 @@ In general, you have to do the following changes compared to regular GLSL:
 - Use the HLSL style `mul` instead of `*` to multiply matrices
 - Use `vec2_splat(1.0)` instead of the `vec2(1.0)` single component constructor.
 
-Lets take a look on how to use the `OgreUnifiedShader.h` macros by starting with a simple GLSL shader:
+Let's take a look at how to use the `OgreUnifiedShader.h` macros by starting with a simple GLSL shader:
 
 ```cpp
+#version 120
 uniform mat4 worldMatrix;
 
 attribute vec4 vertex;
@@ -890,6 +922,7 @@ void main()
 to make it cross-platform, we need to modify it as:
 
 ```cpp
+OGRE_NATIVE_GLSL_VERSION_DIRECTIVE
 #include <OgreUnifiedShader.h>
 
 OGRE_UNIFORMS(

@@ -124,6 +124,7 @@ static bool isArray(GpuProgramParameters::AutoConstantType autoType)
     case GpuProgramParameters::ACT_SPOTLIGHT_VIEWPROJ_MATRIX_ARRAY:
     case GpuProgramParameters::ACT_SPOTLIGHT_WORLDVIEWPROJ_MATRIX_ARRAY:
     case GpuProgramParameters::ACT_SHADOW_SCENE_DEPTH_RANGE_ARRAY:
+    case GpuProgramParameters::ACT_WORLDVIEWPROJ_MATRIX_ARRAY:
         return true;
     default:
         return false;
@@ -239,12 +240,10 @@ UniformParameterPtr Program::resolveParameter(GpuConstantType type,
         index = 0;
 
         // Find the next available index of the target type.
-        UniformParameterIterator it;
-
-        for (it = mParameters.begin(); it != mParameters.end(); ++it)
+        for (const auto& p : mParameters)
         {
-            if ((*it)->getType() == type &&
-                (*it)->isAutoConstantParameter() == false)
+            if (p->getType() == type &&
+                p->isAutoConstantParameter() == false)
             {
                 index++;
             }
@@ -272,14 +271,10 @@ UniformParameterPtr Program::resolveParameter(GpuConstantType type,
 //-----------------------------------------------------------------------------
 UniformParameterPtr Program::getParameterByName(const String& name)
 {
-    UniformParameterIterator it;
-
-    for (it = mParameters.begin(); it != mParameters.end(); ++it)
+    for (auto& p : mParameters)
     {
-        if ((*it)->getName() == name)
-        {
-            return *it;
-        }
+        if (p->getName() == name)
+            return p;
     }
 
     return UniformParameterPtr();
@@ -288,14 +283,12 @@ UniformParameterPtr Program::getParameterByName(const String& name)
 //-----------------------------------------------------------------------------
 UniformParameterPtr Program::getParameterByType(GpuConstantType type, int index)
 {
-    UniformParameterIterator it;
-
-    for (it = mParameters.begin(); it != mParameters.end(); ++it)
+    for (auto& p : mParameters)
     {
-        if ((*it)->getType() == type &&
-            (*it)->getIndex() == index)
+        if (p->getType() == type &&
+            p->getIndex() == index)
         {
-            return *it;
+            return p;
         }
     }
 

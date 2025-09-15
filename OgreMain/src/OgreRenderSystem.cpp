@@ -25,6 +25,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -----------------------------------------------------------------------------
 */
+#include "OgrePrerequisites.h"
 #include "OgreStableHeaders.h"
 // RenderSystem implementation
 // Note that most of this class is abstract since
@@ -32,8 +33,6 @@ THE SOFTWARE.
 //  being aware of the 3D API. However there are a few
 //  simple functions which can have a base implementation
 
-#include "OgreRenderTarget.h"
-#include "OgreDepthBuffer.h"
 #include "OgreHardwareOcclusionQuery.h"
 #include "OgreComponents.h"
 
@@ -74,8 +73,6 @@ namespace Ogre {
         , mNativeShadingLanguageVersion(0)
         , mTexProjRelative(false)
         , mTexProjRelativeOrigin(Vector3::ZERO)
-        , mGlobalInstanceVertexDeclaration(NULL)
-        , mGlobalNumberOfInstances(1)
     {
         mEventNames.push_back("RenderSystemCapabilitiesCreated");
     }
@@ -138,6 +135,18 @@ namespace Ogre {
         mFixedFunctionParams->setAutoConstant(light_offset + 5, GpuProgramParameters::ACT_SPOTLIGHT_PARAMS, index);
     }
 
+    const HardwareBufferPtr& RenderSystem::updateDefaultUniformBuffer(GpuProgramType gptype, const ConstantList& params)
+    {
+        auto& ubo = mUniformBuffer[gptype];
+        if (!ubo || ubo->getSizeInBytes() < params.size())
+        {
+            ubo = HardwareBufferManager::getSingleton().createUniformBuffer(params.size());
+        }
+
+        ubo->writeData(0, params.size(), params.data(), true);
+
+        return ubo;
+    }
     //-----------------------------------------------------------------------
     RenderSystem::~RenderSystem()
     {
@@ -444,8 +453,7 @@ namespace Ogre {
         auto calcMode = tl._deriveTexCoordCalcMethod();
         if(calcMode == TEXCALC_PROJECTIVE_TEXTURE)
         {
-            auto frustum = tl.getEffects().find(TextureUnitState::ET_PROJECTIVE_TEXTURE)->second.frustum;
-            _setTextureCoordCalculation(texUnit, calcMode, frustum);
+            _setTextureCoordCalculation(texUnit, calcMode, tl.getProjectiveTexturingFrustum());
         }
         else
         {
@@ -556,14 +564,20 @@ namespace Ogre {
         // Remove all the render targets. Destroy primary target last since others may depend on it.
         // Keep mRenderTargets valid all the time, so that render targets could receive
         // appropriate notifications, for example FBO based about GL context destruction.
-        RenderTarget* primary {nullptr};
-        for (auto &&a : mRenderTargets) {
-            if (!primary && a.second->isPrimary()) {
-                primary = a.second;
-                continue;
+        RenderTarget* primary = 0;
+        for (RenderTargetMap::iterator it = mRenderTargets.begin(); it != mRenderTargets.end(); /* note - no increment */)
+        {
+            RenderTarget* current = it->second;
+            if (!primary && current->isPrimary())
+            {
+                ++it;
+                primary = current;
             }
-            OGRE_DELETE a.second;
-            mRenderTargets.erase(a.first);
+            else
+            {
+                it = mRenderTargets.erase(it);
+                OGRE_DELETE current;
+            }
         }
         OGRE_DELETE primary;
         mRenderTargets.clear();
@@ -591,22 +605,6 @@ namespace Ogre {
     void RenderSystem::_beginGeometryCount(void)
     {
         mBatchCount = mFaceCount = mVertexCount = 0;
-
-    }
-    //-----------------------------------------------------------------------
-    unsigned int RenderSystem::_getFaceCount(void) const
-    {
-        return static_cast< unsigned int >( mFaceCount );
-    }
-    //-----------------------------------------------------------------------
-    unsigned int RenderSystem::_getBatchCount(void) const
-    {
-        return static_cast< unsigned int >( mBatchCount );
-    }
-    //-----------------------------------------------------------------------
-    unsigned int RenderSystem::_getVertexCount(void) const
-    {
-        return static_cast< unsigned int >( mVertexCount );
     }
     //-----------------------------------------------------------------------
     void RenderSystem::_render(const RenderOperation& op)
@@ -801,11 +799,20 @@ namespace Ogre {
         return MSN_DEFAULT;
     }
     //---------------------------------------------------------------------
-    void RenderSystem::setGlobalInstanceVertexBuffer( const HardwareVertexBufferSharedPtr &val )
+    void RenderSystem::setGlobalInstanceVertexBuffer(const HardwareVertexBufferSharedPtr& val)
     {
         OgreAssert(!val || val->isInstanceData(), "not an instance buffer");
-        mGlobalInstanceVertexBuffer = val;
+        mSchemeInstancingData[_getDefaultViewportMaterialScheme()].vertexBuffer = val;
     }
+    void RenderSystem::enableSchemeInstancing(const String& materialScheme, const HardwareVertexBufferPtr& buffer,
+                                              VertexDeclaration* decl, uint32 instanceCount)
+    {
+        OgreAssert(!buffer || buffer->isInstanceData(), "not an instance buffer");
+        OgreAssert(decl, "null vertex declaration");
+        OgreAssert(instanceCount > 1, "instance count must be greater than 1");
+        mSchemeInstancingData.emplace(materialScheme, GlobalInstancingData{buffer, decl, instanceCount});
+    }
+
     //---------------------------------------------------------------------
     void RenderSystem::getCustomAttribute(const String& name, void* pData)
     {

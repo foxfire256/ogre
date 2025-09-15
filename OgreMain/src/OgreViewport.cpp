@@ -27,14 +27,13 @@ THE SOFTWARE.
 */
 #include "OgreStableHeaders.h"
 #include "OgreViewport.h"
-#include "OgreRenderTarget.h"
 
 namespace Ogre {
     //---------------------------------------------------------------------
-    Viewport::Viewport(Camera* cam, RenderTarget* target, float left, float top, float width, float height, int ZOrder)
+    Viewport::Viewport(Camera* cam, RenderTarget* target, FloatRect relRect, int ZOrder)
         : mCamera(cam)
         , mTarget(target)
-        , mRelRect(left, top, left + width, top + height)
+        , mRelRect(relRect)
         // Actual dimensions will update later
         , mZOrder(ZOrder)
         , mBackColour(ColourValue::Black)

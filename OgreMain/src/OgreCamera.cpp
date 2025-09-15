@@ -472,7 +472,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void Camera::_renderScene(Viewport *vp)
     {
-        OgreProfileBeginGPUEvent(getName());
+        OgreGpuEventScope(getName());
 
         //update the pixel display ratio
         if (mProjType == Ogre::PT_PERSPECTIVE)
@@ -502,7 +502,6 @@ namespace Ogre {
         {
             i->cameraPostRenderScene(this);
         }
-        OgreProfileEndGPUEvent(getName());
     }
     //---------------------------------------------------------------------
     void Camera::addListener(Listener* l)
@@ -540,28 +539,6 @@ namespace Ogre {
         o << ")";
 
         return o;
-    }
-    //-----------------------------------------------------------------------
-    void Camera::_notifyRenderedFaces(unsigned int numfaces)
-    {
-        mVisFacesLastRender = numfaces;
-    }
-
-    //-----------------------------------------------------------------------
-    void Camera::_notifyRenderedBatches(unsigned int numbatches)
-    {
-        mVisBatchesLastRender = numbatches;
-    }
-
-    //-----------------------------------------------------------------------
-    unsigned int Camera::_getNumRenderedFaces(void) const
-    {
-        return mVisFacesLastRender;
-    }
-    //-----------------------------------------------------------------------
-    unsigned int Camera::_getNumRenderedBatches(void) const
-    {
-        return mVisBatchesLastRender;
     }
     //-----------------------------------------------------------------------
     const Quaternion& Camera::getDerivedOrientation(void) const
@@ -956,7 +933,7 @@ namespace Ogre {
         }
     }
     //-----------------------------------------------------------------------
-    Real Camera::getNearClipDistance(void) const
+    float Camera::getNearClipDistance(void) const
     {
         if (mCullFrustum)
         {
@@ -968,7 +945,7 @@ namespace Ogre {
         }
     }
     //-----------------------------------------------------------------------
-    Real Camera::getFarClipDistance(void) const
+    float Camera::getFarClipDistance(void) const
     {
         if (mCullFrustum)
         {

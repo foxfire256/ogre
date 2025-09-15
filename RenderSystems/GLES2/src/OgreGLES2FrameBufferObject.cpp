@@ -34,13 +34,14 @@ THE SOFTWARE.
 #include "OgreRoot.h"
 #include "OgreGLES2RenderSystem.h"
 #include "OgreGLNativeSupport.h"
+#include <sstream>
 
 namespace Ogre {
 
 //-----------------------------------------------------------------------------
-    GLES2FrameBufferObject::GLES2FrameBufferObject(GLES2FBOManager *manager, uint fsaa):
-        GLFrameBufferObjectCommon(fsaa), mManager(manager)
-    {
+GLES2FrameBufferObject::GLES2FrameBufferObject( uint fsaa)
+    : GLFrameBufferObjectCommon(fsaa)
+{
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE_IOS
         GLint oldfb = 0;
         OGRE_CHECK_GL_ERROR(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldfb));
@@ -51,7 +52,18 @@ namespace Ogre {
         // Generate framebuffer object
         OGRE_CHECK_GL_ERROR(glGenFramebuffers(1, &mFB));
 
-        mNumSamples = std::min(mNumSamples, manager->getMaxFSAASamples());
+        // Check multisampling if supported
+        if(rs->hasMinGLVersion(3, 0))
+        {
+            // Check samples supported
+            GLint maxSamples;
+            OGRE_CHECK_GL_ERROR(glGetIntegerv(GL_MAX_SAMPLES_APPLE, &maxSamples));
+            mNumSamples = std::min(mNumSamples, maxSamples);
+        }
+        else
+        {
+            mNumSamples = 0;
+        }
 
         // Will we need a second FBO to do multisampling?
         if (mNumSamples)
@@ -70,9 +82,8 @@ namespace Ogre {
     
     GLES2FrameBufferObject::~GLES2FrameBufferObject()
     {
-        mManager->releaseRenderBuffer(mDepth);
-        mManager->releaseRenderBuffer(mStencil);
-        mManager->releaseRenderBuffer(mMultisampleColourBuffer);
+        mRTTManager->releaseRenderBuffer(mDepth);
+        mRTTManager->releaseRenderBuffer(mStencil);
         // Delete framebuffer object
         if(mContext && mFB)
         {
@@ -87,9 +98,9 @@ namespace Ogre {
 #if OGRE_PLATFORM == OGRE_PLATFORM_ANDROID || OGRE_PLATFORM == OGRE_PLATFORM_EMSCRIPTEN
     void GLES2FrameBufferObject::notifyOnContextLost()
     {
-        mManager->releaseRenderBuffer(mDepth);
-        mManager->releaseRenderBuffer(mStencil);
-        mManager->releaseRenderBuffer(mMultisampleColourBuffer);
+        mRTTManager->releaseRenderBuffer(mDepth);
+        mRTTManager->releaseRenderBuffer(mStencil);
+        mRTTManager->releaseRenderBuffer(mMultisampleColourBuffer);
         
         OGRE_CHECK_GL_ERROR(glDeleteFramebuffers(1, &mFB));
         
@@ -114,9 +125,11 @@ namespace Ogre {
         assert(mContext == rs->_getCurrentContext());
         
         // Release depth and stencil, if they were bound
-        mManager->releaseRenderBuffer(mDepth);
-        mManager->releaseRenderBuffer(mStencil);
-        mManager->releaseRenderBuffer(mMultisampleColourBuffer);
+        mRTTManager->releaseRenderBuffer(mDepth);
+        mRTTManager->releaseRenderBuffer(mStencil);
+
+        releaseMultisampleColourBuffer();
+
         // First buffer must be bound
         if(!mColour[0].buffer)
         {
@@ -175,7 +188,7 @@ namespace Ogre {
             // Create AA render buffer (colour)
             // note, this can be shared too because we blit it to the final FBO
             // right after the render is finished
-            mMultisampleColourBuffer = mManager->requestRenderBuffer(format, width, height, mNumSamples);
+            initialiseMultisampleColourBuffer(format, width, height);
 
             // Attach it, because we won't be attaching below and non-multisample has
             // actually been attached to other FBO

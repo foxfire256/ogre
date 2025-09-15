@@ -345,30 +345,6 @@ namespace Ogre {
         return mLightList;
     }
     //-----------------------------------------------------------------------
-    const ShadowRenderableList& MovableObject::getShadowVolumeRenderableList(
-        const Light* light, const HardwareIndexBufferPtr& indexBuffer, size_t& indexBufferUsedSize,
-        float extrusionDist, int flags)
-    {
-        static ShadowRenderableList dummyList;
-        return dummyList;
-    }
-    //-----------------------------------------------------------------------
-    const AxisAlignedBox& MovableObject::getLightCapBounds(void) const
-    {
-        // Same as original bounds
-        return getWorldBoundingBox();
-    }
-    //-----------------------------------------------------------------------
-    const AxisAlignedBox& MovableObject::getDarkCapBounds(const Light& light, Real extrusionDist) const
-    {
-        // Extrude own light cap bounds
-        mWorldDarkCapBounds = getLightCapBounds();
-        this->extrudeBounds(mWorldDarkCapBounds, light.getAs4DVector(), 
-            extrusionDist);
-        return mWorldDarkCapBounds;
-
-    }
-    //-----------------------------------------------------------------------
     Real MovableObject::getPointExtrusionDistance(const Light* l) const
     {
         if (mParentNode)
@@ -422,13 +398,11 @@ namespace Ogre {
         {
 
         }
-        void visit(Renderable* rend, ushort lodIndex, bool isDebug, 
-            Any* pAny = 0) override
+        void visit(Renderable* rend, ushort lodIndex, bool isDebug, Any* pAny = 0) override
         {
-            Technique* tech = rend->getTechnique();
-            bool techReceivesShadows = tech && tech->getParent()->getReceiveShadows();
-            anyReceiveShadows = anyReceiveShadows || 
-                techReceivesShadows || !tech;
+            const auto& mat = rend->getMaterial();
+            bool techReceivesShadows = !mat || mat->getReceiveShadows();
+            anyReceiveShadows = anyReceiveShadows || techReceivesShadows;
         }
     };
     //---------------------------------------------------------------------

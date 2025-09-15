@@ -79,6 +79,8 @@ namespace Ogre {
         */
         void _clearSliceRTT(size_t zoffset);
         friend class RenderTexture;
+
+        String getNameForRenderTexture(const String& parentName, uint32 layer = 0) const;
     public:
         /// Should be called by HardwareBufferManager
         HardwarePixelBuffer(uint32 mWidth, uint32 mHeight, uint32 mDepth,
@@ -178,7 +180,7 @@ namespace Ogre {
             @return A pointer to the render target. This pointer has the lifespan of this
             PixelBuffer.
         */
-        RenderTexture *getRenderTarget(size_t slice=0);
+        RenderTexture *getRenderTarget(size_t slice=0) const;
         
         /// Gets the width of this buffer
         uint32 getWidth() const { return mWidth; }

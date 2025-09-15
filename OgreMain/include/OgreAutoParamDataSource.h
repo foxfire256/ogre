@@ -49,12 +49,12 @@ namespace Ogre {
     /** This utility class is used to hold the information used to generate the matrices
     and other information required to automatically populate GpuProgramParameters.
 
-        This class exercises a lazy-update scheme in order to avoid having to update all
-        the information a GpuProgramParameters class could possibly want all the time. 
-        It relies on the SceneManager to update it when the base data has changed, and
-        will calculate concatenated matrices etc only when required, passing back precalculated
-        matrices when they are requested more than once when the underlying information has
-        not altered.
+    This class exercises a lazy-update scheme in order to avoid having to update all
+    the information a GpuProgramParameters class could possibly want all the time.
+    It relies on the SceneManager to update it when the base data has changed, and
+    will calculate concatenated matrices etc only when required, passing back precalculated
+    matrices when they are requested more than once when the underlying information has
+    not altered.
     */
     class _OgreExport AutoParamDataSource : public SceneMgtAlloc
     {
@@ -105,6 +105,7 @@ namespace Ogre {
         mutable bool mShadowCamDepthRangesDirty[OGRE_MAX_SIMULTANEOUS_LIGHTS];
         ColourValue mAmbientLight;
         ColourValue mFogColour;
+        ColourValue mShadowColour;
         Vector4f mFogParams;
         Vector4f mPointParams;
         int mPassNumber;
@@ -115,6 +116,7 @@ namespace Ogre {
 
         const Renderable* mCurrentRenderable;
         const Camera* mCurrentCamera;
+        std::vector<const Camera*> mCameraArray;
         bool mCameraRelativeRendering;
         Vector3 mCameraRelativePosition;
         const LightList* mCurrentLightList;
@@ -135,6 +137,7 @@ namespace Ogre {
         void setWorldMatrices(const Affine3* m, size_t count);
         /** Updates the current camera */
         void setCurrentCamera(const Camera* cam, bool useCameraRelative);
+        void setCameraArray(const std::vector<const Camera*> cameras);
         /** Sets the light list that should be used, and it's base index from the global list */
         void setCurrentLightList(const LightList* ll);
         /** Sets the current texture projector for a index */
@@ -163,9 +166,12 @@ namespace Ogre {
         size_t getBoneMatrixCount(void) const;
         OGRE_DEPRECATED size_t getWorldMatrixCount(void) const { return getBoneMatrixCount(); }
         const Affine3& getViewMatrix(void) const;
+        Affine3 getViewMatrix(const Camera* cam) const;
         const Matrix4& getViewProjectionMatrix(void) const;
         const Matrix4& getProjectionMatrix(void) const;
+        Matrix4 getProjectionMatrix(const Camera* cam) const;
         const Matrix4& getWorldViewProjMatrix(void) const;
+        Matrix4 getWorldViewProjMatrix(size_t index) const;
         const Affine3& getWorldViewMatrix(void) const;
         const Affine3& getInverseWorldMatrix(void) const;
         const Affine3& getInverseWorldViewMatrix(void) const;
@@ -221,6 +227,7 @@ namespace Ogre {
         Real getShadowExtrusionDistance(void) const;
         const Vector4& getSceneDepthRange() const;
         const Vector4& getShadowSceneDepthRange(size_t index) const;
+        void setShadowColour(const ColourValue& colour);
         const ColourValue& getShadowColour() const;
         Matrix4 getInverseViewProjMatrix(void) const;
         Matrix4 getInverseTransposeViewProjMatrix() const;
@@ -260,9 +267,9 @@ namespace Ogre {
         Vector3 getViewDirection() const;
         Vector3 getViewSideVector() const;
         Vector3 getViewUpVector() const;
-        Real getFOV() const;
-        Real getNearClipDistance() const;
-        Real getFarClipDistance() const;
+        float getFOV() const;
+        float getNearClipDistance() const;
+        float getFarClipDistance() const;
         int getPassNumber(void) const;
         int getMaterialLodIndex() const;
         void setPassNumber(const int passNumber);

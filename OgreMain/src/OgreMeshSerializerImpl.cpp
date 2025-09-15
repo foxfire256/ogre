@@ -624,6 +624,19 @@ namespace Ogre {
 
         // Perform any necessary colour conversions from ARGB to ABGR (UBYTE4)
         dest->convertPackedColour(_DETAIL_SWAP_RB, VET_UBYTE4_NORM);
+
+        auto rs = Root::getSingletonPtr() ? Root::getSingleton().getRenderSystem() : NULL;
+        if(!rs || rs->getCapabilities()->hasCapability(RSC_VERTEX_FORMAT_16X3))
+            return;
+
+        for(auto& elem : dest->vertexDeclaration->getElements())
+        {
+            if (elem.getType() == VET_HALF3 || elem.getType() == VET_SHORT3 || elem.getType() == VET_USHORT3)
+            {
+                auto dstType = VertexElement::multiplyTypeCount(VertexElement::getBaseType(elem.getType()), 4);
+                dest->convertVertexElement(elem.getSemantic(), dstType, elem.getIndex());
+            }
+        }
     }
     //---------------------------------------------------------------------
     void MeshSerializerImpl::readGeometryVertexDeclaration(const DataStreamPtr& stream,
@@ -1990,6 +2003,7 @@ namespace Ogre {
         size_t size = MSTREAM_OVERHEAD_SIZE;
         // float time
         size += sizeof(float);
+        size += sizeof(char); // bool includesNormals
         // float x,y,z[,nx,ny,nz]
         bool includesNormals = kf->getVertexBuffer()->getVertexSize() > (sizeof(float) * 3);
         size += sizeof(float) * (includesNormals ? 6 : 3) * vertexCount;

@@ -31,8 +31,8 @@ THE SOFTWARE.
 // Precompiler options
 #include "OgrePrerequisites.h"
 
-#include "OgreTextureUnitState.h"
 #include "OgreCommon.h"
+#include "OgreBlendMode.h"
 
 #include "OgreRenderSystemCapabilities.h"
 #include "OgreConfigOptionMap.h"
@@ -43,6 +43,9 @@ THE SOFTWARE.
 
 namespace Ogre
 {
+    class Sampler;
+    class TextureUnitState;
+
     /** \addtogroup Core
     *  @{
     */
@@ -61,11 +64,13 @@ namespace Ogre
     {
         /// No calculated texture coordinates
         TEXCALC_NONE,
-        /// Environment map based on vertex normals
+        /// 2D texture coordinates using spherical reflection mapping based on vertex normals.
         TEXCALC_ENVIRONMENT_MAP,
-        /// Environment map based on vertex positions
+        /// 2D texture coordinates using view space position. Same as #TEXCALC_ENVIRONMENT_MAP on all backends.
         TEXCALC_ENVIRONMENT_MAP_PLANAR,
+        /// 3D texture coordinates using the reflection vector.
         TEXCALC_ENVIRONMENT_MAP_REFLECTION,
+        /// 3D texture coordinates using the normal vector.
         TEXCALC_ENVIRONMENT_MAP_NORMAL,
         /// Projective texture
         TEXCALC_PROJECTIVE_TEXTURE
@@ -138,6 +143,13 @@ namespace Ogre
         }
     };
 
+    struct _OgreExport GlobalInstancingData
+    {
+        HardwareVertexBufferPtr vertexBuffer;
+        VertexDeclaration* vertexDecl = nullptr;
+        uint32 instanceCount = 1;
+    };
+
     /** Defines the functionality of a 3D API
 
     The RenderSystem class provides a base interface
@@ -158,8 +170,6 @@ namespace Ogre
     of exactly which 3D API is in use.
     @author
     Steven Streeting
-    @version
-    1.0
     */
     class _OgreExport RenderSystem : public RenderSysAlloc
     {
@@ -387,7 +397,10 @@ namespace Ogre
         | displayFrequency | Refresh rate in Hertz (e.g. 60, 75, 100) | Desktop vsync rate | Display frequency rate, for fullscreen mode |  |
         | externalWindowHandle | <ul><li>Win32: HWND as int<li>Linux: X11 Window as ulong<li>OSX: OgreGLView address as an integer. You can pass NSView or NSWindow too, but should perform OgreGLView callbacks into the Ogre manually<li>iOS: UIWindow address as an integer<li>Emscripten: canvas selector String ("#canvas")</ul> | 0 (none) | External window handle, for embedding the OGRE render in an existing window |  |
         | externalGLControl | true, false | false | Let the external window control OpenGL i.e. don't select a pixel format for the window, do not change v-sync and do not swap buffer. When set to true, the calling application is responsible of OpenGL initialization and buffer swapping. It should also create an OpenGL context for its own rendering, Ogre will create one for its use. Then the calling application must also enable Ogre OpenGL context before calling any Ogre function and restore its OpenGL context after these calls. | OpenGL |
+        | externalWlDisplay | wl_display address as an integer | 0 (none) | Wayland display connection | Linux |
+        | externalWlSurface | wl_surface address as an integer | 0 (none) | Wayland onscreen surface | Linux |
         | currentGLContext | true, false | false | Use an externally created GL context. (Must be current) | OpenGL |
+        | currentEGLSurface | true, false | false | Use an externally created EGL surface. | Android |
         | minColourBufferSize | Positive integer (usually 16, 32) | 16 | Min total colour buffer size. See EGL_BUFFER_SIZE | OpenGL |
         | windowProc | WNDPROC | DefWindowProc | function that processes window messages | Win 32 |
         | colourDepth | 16, 32 | Desktop depth | Colour depth of the resulting rendering window; only applies if fullScreen | Win32 |
@@ -438,29 +451,53 @@ namespace Ogre
         */
         virtual RenderTarget * detachRenderTarget( const String &name );
 
-        /** Returns the global instance vertex buffer.
-        */
-        HardwareVertexBufferPtr getGlobalInstanceVertexBuffer() const { return mGlobalInstanceVertexBuffer; }
-        /** Sets the global instance vertex buffer.
-        */
-        void setGlobalInstanceVertexBuffer(const HardwareVertexBufferPtr &val);
-        /** Gets vertex declaration for the global vertex buffer for the global instancing
-        */
-        VertexDeclaration* getGlobalInstanceVertexDeclaration() const { return mGlobalInstanceVertexDeclaration; }
-        /** Sets vertex declaration for the global vertex buffer for the global instancing
-        */
-        void setGlobalInstanceVertexDeclaration( VertexDeclaration* val) { mGlobalInstanceVertexDeclaration = val; }
-        /** Gets the global number of instances.
-        */
-        uint32 getGlobalInstanceCount() const { return mGlobalNumberOfInstances; }
-        /** Sets the global number of instances.
-        */
-        void setGlobalInstanceCount(uint32 val) { mGlobalNumberOfInstances = val; }
+        /// @deprecated use getSchemeInstancingData instead
+        OGRE_DEPRECATED HardwareVertexBufferPtr getGlobalInstanceVertexBuffer() const
+        {
+            auto it = mSchemeInstancingData.find(_getDefaultViewportMaterialScheme());
+            return it != mSchemeInstancingData.end() ? it->second.vertexBuffer : nullptr;
+        }
+        /// @deprecated use enableSchemeInstancing instead
+        OGRE_DEPRECATED void setGlobalInstanceVertexBuffer(const HardwareVertexBufferPtr& val);
+        /// @deprecated use getSchemeInstancingData instead
+        OGRE_DEPRECATED VertexDeclaration* getGlobalInstanceVertexDeclaration() const
+        {
+            auto it = mSchemeInstancingData.find(_getDefaultViewportMaterialScheme());
+            return it != mSchemeInstancingData.end() ? it->second.vertexDecl : nullptr;
+        }
+        /// @deprecated use enableSchemeInstancing instead
+        OGRE_DEPRECATED void setGlobalInstanceVertexDeclaration(VertexDeclaration* val)
+        {
+            mSchemeInstancingData[_getDefaultViewportMaterialScheme()].vertexDecl = val;
+        }
+        /// @deprecated use getSchemeInstancingData instead
+        OGRE_DEPRECATED uint32 getGlobalInstanceCount() const
+        {
+            auto it = mSchemeInstancingData.find(_getDefaultViewportMaterialScheme());
+            return it != mSchemeInstancingData.end() ? it->second.instanceCount : 1;
+        }
+        /// @deprecated use enableSchemeInstancing instead
+        OGRE_DEPRECATED void setGlobalInstanceCount(uint32 val)
+        {
+            mSchemeInstancingData[_getDefaultViewportMaterialScheme()].instanceCount = val;
+        }
+
+        /// Sets the global instance data for the given material scheme.
+        void enableSchemeInstancing(const String& materialScheme, const HardwareVertexBufferPtr& buffer,
+                                    VertexDeclaration* decl, uint32 instanceCount);
+        /// Gets all data for the global scheme based instancing
+        GlobalInstancingData getSchemeInstancingData(const String& materialScheme) const
+        {
+            auto it = mSchemeInstancingData.find(materialScheme);
+            return it != mSchemeInstancingData.end() ? it->second : GlobalInstancingData();
+        }
+        /// disables instancing for the given material scheme
+        void disableSchemeInstancing(const String& materialScheme) { mSchemeInstancingData.erase(materialScheme); }
 
         /** Retrieves an existing DepthBuffer or creates a new one suited for the given RenderTarget
             and sets it.
 
-                RenderTarget's pool ID is respected. @see RenderTarget::setDepthBufferPool()
+            RenderTarget's pool ID is respected. @see RenderTarget::setDepthBufferPool()
         */
         void setDepthBufferFor( RenderTarget *renderTarget );
 
@@ -610,19 +647,19 @@ namespace Ogre
 
         /** Creates a DepthBuffer that can be attached to the specified RenderTarget
 
-                It doesn't attach anything, it just returns a pointer to a new DepthBuffer
-                Caller is responsible for putting this buffer into the right pool, for
-                attaching, and deleting it. Here's where API-specific magic happens.
-                Don't call this directly unless you know what you're doing.
+            It doesn't attach anything, it just returns a pointer to a new DepthBuffer
+            Caller is responsible for putting this buffer into the right pool, for
+            attaching, and deleting it. Here's where API-specific magic happens.
+            Don't call this directly unless you know what you're doing.
         */
         virtual DepthBuffer* _createDepthBufferFor( RenderTarget *renderTarget ) = 0;
 
         /** Removes all depth buffers. Should be called on device lost and shutdown
 
-                Advanced users can call this directly with bCleanManualBuffers=false to
-                remove all depth buffers created for RTTs; when they think the pool has
-                grown too big or they've used lots of depth buffers they don't need anymore,
-                freeing GPU RAM.
+            Advanced users can call this directly with bCleanManualBuffers=false to
+            remove all depth buffers created for RTTs; when they think the pool has
+            grown too big or they've used lots of depth buffers they don't need anymore,
+            freeing GPU RAM.
         */
         void _cleanupDepthBuffers( bool bCleanManualBuffers=true );
 
@@ -710,13 +747,13 @@ namespace Ogre
         virtual void _setDepthClamp(bool enable) {}
 
         /** The RenderSystem will keep a count of tris rendered, this resets the count. */
-        virtual void _beginGeometryCount(void);
+        void _beginGeometryCount(void);
         /** Reports the number of tris rendered since the last _beginGeometryCount call. */
-        virtual unsigned int _getFaceCount(void) const;
+        unsigned int _getFaceCount(void) const { return static_cast<unsigned int>(mFaceCount); }
         /** Reports the number of batches rendered since the last _beginGeometryCount call. */
-        virtual unsigned int _getBatchCount(void) const;
+        unsigned int _getBatchCount(void) const { return static_cast<unsigned int>(mBatchCount); }
         /** Reports the number of vertices passed to the renderer since the last _beginGeometryCount call. */
-        virtual unsigned int _getVertexCount(void) const;
+        unsigned int _getVertexCount(void) const { return static_cast<unsigned int>(mVertexCount); }
 
         /// @deprecated use ColourValue::getAsBYTE()
         OGRE_DEPRECATED static void convertColourValue(const ColourValue& colour, uint32* pDest)
@@ -1196,15 +1233,16 @@ namespace Ogre
         void setFFPLightParams(uint32 index, bool enabled);
         bool flipFrontFace() const;
         static CompareFunction reverseCompareFunction(CompareFunction func);
+
+        const HardwareBufferPtr& updateDefaultUniformBuffer(GpuProgramType type, const ConstantList& params);
     private:
         StencilState mStencilState;
 
+        /// buffers for default uniform blocks
+        HardwareBufferPtr mUniformBuffer[GPT_COUNT];
+
         /// a global vertex buffer for global instancing
-        HardwareVertexBufferSharedPtr mGlobalInstanceVertexBuffer;
-        /// a vertex declaration for the global vertex buffer for the global instancing
-        VertexDeclaration* mGlobalInstanceVertexDeclaration;
-        /// the number of global instances (this number will be multiply by the render op instance number)
-        uint32 mGlobalNumberOfInstances;
+        std::map<String, GlobalInstancingData> mSchemeInstancingData;
     };
     /** @} */
     /** @} */

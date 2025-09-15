@@ -42,7 +42,7 @@ namespace Ogre {
     class _OgreGL3PlusExport GL3PlusFBORenderTexture : public GLRenderTexture
     {
     public:
-        GL3PlusFBORenderTexture(GL3PlusFBOManager *manager, const String &name, const GLSurfaceDesc &target, bool writeGamma, uint fsaa);
+        GL3PlusFBORenderTexture(const String &name, const GLSurfaceDesc &target, bool writeGamma, uint fsaa);
 
         void getCustomAttribute(const String& name, void* pData) override;
 
@@ -51,7 +51,6 @@ namespace Ogre {
 
         /// Override so we can attach the depth buffer to the FBO
         bool attachDepthBuffer( DepthBuffer *depthBuffer ) override;
-        void detachDepthBuffer() override;
         void _detachDepthBuffer() override;
 
         GLContext* getContext() const override { return mFB.getContext(); }
@@ -77,11 +76,7 @@ namespace Ogre {
         GL3PlusFBORenderTexture *createRenderTexture(const String &name,
                                                              const GLSurfaceDesc &target, bool writeGamma, uint fsaa) override;
 
-        /** Request a render buffer. If format is GL_NONE, return a zero buffer.
-         */
-        GLSurfaceDesc requestRenderBuffer(GLenum format, uint32 width, uint32 height, uint fsaa);
-
-        GL3PlusStateCacheManager* getStateCacheManager();
+        GLSurfaceDesc createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa) override;
     private:
         GL3PlusRenderSystem* mRenderSystem;
 

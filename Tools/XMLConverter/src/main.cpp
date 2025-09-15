@@ -278,23 +278,17 @@ void meshToXML(const XmlOptions& opts, MeshSerializer& meshSerializer)
    
     XMLMeshSerializer xmlMeshSerializer;
     xmlMeshSerializer.exportMesh(mesh.get(), opts.dest);
-
-    // Clean up the conversion mesh
-    MeshManager::getSingleton().remove("conversion",
-                                       ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
 }
 
 void XMLToBinary(const XmlOptions& opts, MeshSerializer& meshSerializer)
 {
     // Read root element and decide from there what type
-    String response;
     pugi::xml_document doc;
-
-    // Some double-parsing here but never mind
-    if (!doc.load_file(opts.source.c_str()))
+    auto result = doc.load_file(opts.source.c_str());
+    if (!result)
     {
-        LogManager::getSingleton().logError("Unable to load file " + opts.source);
-        exit (1);
+        OGRE_EXCEPT(Exception::ERR_INTERNAL_ERROR,
+                    StringUtil::format("Unable to load '%s' - %s", opts.source.c_str(), result.description()));
     }
     pugi::xml_node root = doc.document_element();
     if (StringUtil::startsWith("mesh", root.name()))
@@ -320,9 +314,6 @@ void XMLToBinary(const XmlOptions& opts, MeshSerializer& meshSerializer)
         }
 
         meshSerializer.exportMesh(newMesh, opts.dest, opts.endian);
-
-        // Clean up the conversion mesh
-        MeshManager::getSingleton().remove("conversion", RGN_DEFAULT);
     }
     else if (StringUtil::startsWith("skeleton", root.name()))
     {
@@ -336,9 +327,6 @@ void XMLToBinary(const XmlOptions& opts, MeshSerializer& meshSerializer)
         }
         SkeletonSerializer skeletonSerializer;
         skeletonSerializer.exportSkeleton(newSkel.get(), opts.dest, SKELETON_VERSION_LATEST, opts.endian);
-
-        // Clean up the conversion skeleton
-        SkeletonManager::getSingleton().remove("conversion", RGN_DEFAULT);
     }
 }
 
@@ -358,9 +346,6 @@ void skeletonToXML(const XmlOptions& opts)
 
     XMLSkeletonSerializer xmlSkeletonSerializer;
     xmlSkeletonSerializer.exportSkeleton(skel.get(), opts.dest);
-
-    // Clean up the conversion skeleton
-    SkeletonManager::getSingleton().remove("conversion", RGN_DEFAULT);
 }
 
 struct MeshResourceCreator : public MeshSerializerListener
@@ -370,7 +355,7 @@ struct MeshResourceCreator : public MeshSerializerListener
         if (name->empty())
         {
             LogManager::getSingleton().logWarning("one of the SubMeshes is using an empty material name. "
-                                                  "See https://ogrecave.github.io/ogre/api/latest/_mesh-_tools.html#autotoc_md32");
+                                                  "See https://ogrecave.github.io/ogre/api/latest/_mesh-_tools.html#empty-material-names");
             // here, we explicitly want to allow fixing that
             return;
         }
@@ -414,6 +399,8 @@ int main(int numargs, char** args)
     try 
     {
         logMgr.setDefaultLog(NULL); // swallow startup messages
+
+        DefaultHardwareBufferManager bufferManager; // needed because we don't have a rendersystem
         Root root("", "", "");
         // get rid of the temporary log as we use the new log now
         logMgr.destroyLog("Temporary log");
@@ -426,7 +413,6 @@ int main(int numargs, char** args)
         MeshSerializer meshSerializer;
         MeshResourceCreator resCreator;
         meshSerializer.setListener(&resCreator);
-        DefaultHardwareBufferManager bufferManager; // needed because we don't have a rendersystem
 
         if (opts.sourceExt == "mesh")
         {

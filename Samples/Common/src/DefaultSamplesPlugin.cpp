@@ -53,6 +53,7 @@
 #include "FacialAnimation.h"
 #include "Fresnel.h"
 #include "Grass.h"
+#include "GaussianSplatting.h"
 #ifdef HAVE_IMGUI
 #include "ImGuiDemo.h"
 #endif
@@ -62,6 +63,7 @@
 #ifdef OGRE_BUILD_COMPONENT_MESHLODGENERATOR
 #   include "MeshLod.h"
 #endif
+#include "MeshShaders.h"
 #include "NewInstancing.h"
 #include "OceanDemo.h"
 #include "ParticleFX.h"
@@ -133,6 +135,7 @@ DefaultSamplesPlugin::DefaultSamplesPlugin() : SamplePlugin("DefaultSamplesPlugi
 #ifdef OGRE_BUILD_COMPONENT_MESHLODGENERATOR
     addSample(new Sample_MeshLod);
 #endif
+    addSample(new Sample_MeshShaders);
     addSample(new Sample_ParticleFX);
 #ifdef HAVE_PCZ_PLUGIN
     addSample(new Sample_PCZTest);
@@ -152,6 +155,7 @@ DefaultSamplesPlugin::DefaultSamplesPlugin() : SamplePlugin("DefaultSamplesPlugi
     addSample(new Sample_Tessellation);
     addSample(new Sample_PBR);
     addSample(new Sample_RectLight);
+    addSample(new Sample_GaussianSplatting);
 #if defined(OGRE_BUILD_COMPONENT_RTSHADERSYSTEM) && OGRE_PLATFORM != OGRE_PLATFORM_WINRT
     addSample(new Sample_ShaderSystem);
     addSample(new Sample_ShaderSystemTexturedFog);

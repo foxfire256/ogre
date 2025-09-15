@@ -34,10 +34,6 @@ THE SOFTWARE.
 #include "OgreCustomCompositionPass.h"
 #include "OgreHardwarePixelBuffer.h"
 #include "OgreCompositorLogic.h"
-#include "OgreRenderTarget.h"
-#include "OgreRenderTexture.h"
-#include "OgreRectangle2D.h"
-#include "OgreDepthBuffer.h"
 
 namespace Ogre {
 CompositorInstance::CompositorInstance(CompositionTechnique *technique,
@@ -304,6 +300,22 @@ public:
     }
 };
 
+//-----------------------------------------------------------------------
+/** Create a local dummy material with one technique but no passes.
+    The material is detached from the Material Manager to make sure it is destroyed
+    when going out of scope.
+*/
+static MaterialPtr createLocalMaterial(const String& srcName)
+{
+    static size_t dummyCounter = 0;
+    auto mat = MaterialManager::getSingleton().create(StringUtil::format("c%zu/%s", dummyCounter++, srcName.c_str()),
+                                                      RGN_INTERNAL);
+    /// This is safe, as we hold a private reference
+    MaterialManager::getSingleton().remove(mat);
+    /// Remove all passes from first technique
+    mat->getTechnique(0)->removeAllPasses();
+    return mat;
+}
 void CompositorInstance::collectPasses(TargetOperation &finalState, const CompositionTargetPass *target)
 {
     /// Here, passes are converted into render target operations
@@ -465,7 +477,7 @@ void CompositorInstance::_compileTargetOperations(CompiledState &compiledState)
     /// Texture targets
     for (CompositionTargetPass *target : mTechnique->getTargetPasses())
     {        
-        TargetOperation ts(getTargetForTex(target->getOutputName(), target->getOutputSlice()));
+        TargetOperation ts(getRenderTarget(target->getOutputName(), target->getOutputSlice()));
         /// Set "only initial" flag, visibilityMask and lodBias according to CompositionTargetPass.
         ts.onlyInitial = target->getOnlyInitial();
         ts.visibilityMask = target->getVisibilityMask();
@@ -588,19 +600,6 @@ const TexturePtr& CompositorInstance::getTextureInstance(const String& name, siz
     return nullPtr;
 
 }
-//-----------------------------------------------------------------------
-MaterialPtr CompositorInstance::createLocalMaterial(const String& srcName)
-{
-    static size_t dummyCounter = 0;
-    MaterialPtr mat = MaterialManager::getSingleton().create(
-        StringUtil::format("c%zu/%s", dummyCounter++, srcName.c_str()),
-        ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME);
-    /// This is safe, as we hold a private reference
-    MaterialManager::getSingleton().remove(mat);
-    /// Remove all passes from first technique
-    mat->getTechnique(0)->removeAllPasses();
-    return mat;
-}
 //---------------------------------------------------------------------
 void CompositorInstance::notifyResized()
 {
@@ -609,6 +608,27 @@ void CompositorInstance::notifyResized()
     /// Notify chain state needs recompile.
     mChain->_markDirty();
 }
+
+TexturePtr CompositorInstance::getLocalTexture(const CompositionTechnique::TextureDefinition& def, PixelFormat p,
+                                               const String& fsaaHint, const String& localName,
+                                               std::set<Texture*>& assignedTextures)
+{
+    TexturePtr tex;
+    if (def.pooled)
+    {
+        // get / create pooled texture
+        tex = CompositorManager::getSingleton().getPooledTexture(def, localName, p, fsaaHint, assignedTextures, this);
+    }
+    else
+    {
+        tex = createTexture(def.name, def, p, fsaaHint);
+    }
+
+    // Also add to local textures so we can look up
+    mLocalTextures[localName] = tex;
+    return tex;
+}
+
 //-----------------------------------------------------------------------
 void CompositorInstance::createResources(bool forResizeOnly)
 {
@@ -626,143 +646,90 @@ void CompositorInstance::createResources(bool forResizeOnly)
             continue;
         }
 
+        MultiRenderTarget* mrt = nullptr;
+        TexturePtr tex;
+
         if (def->scope == CompositionTechnique::TS_GLOBAL) {
             //This is a global texture, just link the created resources from the parent
             Compositor* parentComp = mTechnique->getParent();
             if (def->formatList.size() > 1) 
             {
-                size_t atch = 0;
-                for (PixelFormatList::iterator p = def->formatList.begin(); 
-                     p != def->formatList.end(); ++p, ++atch)
+                for (size_t atch = 0; atch < def->formatList.size(); atch++)
                 {
-                    Ogre::TexturePtr tex = parentComp->getTextureInstance(def->name, atch);
-                    mLocalTextures[getMRTTexLocalName(def->name, atch)] = tex;
+                    Ogre::TexturePtr mrttex = parentComp->getTextureInstance(def->name, atch);
+                    mLocalTextures[getMRTTexLocalName(def->name, atch)] = mrttex;
                 }
-                MultiRenderTarget* mrt = static_cast<MultiRenderTarget*>
-                (parentComp->getRenderTarget(def->name));
+                mrt = static_cast<MultiRenderTarget*>(parentComp->getRenderTarget(def->name));
                 mLocalMRTs[def->name] = mrt;
-                
-                setupRenderTarget(mrt, def->depthBufferId);
             } else {
-                Ogre::TexturePtr tex = parentComp->getTextureInstance(def->name, 0);
+                tex = parentComp->getTextureInstance(def->name, 0);
                 mLocalTextures[def->name] = tex;
-                
-                for(size_t i = 0; i < tex->getNumFaces(); i++)
-                    setupRenderTarget(tex->getBuffer(i)->getRenderTarget(), def->depthBufferId);
             }
-            
         } else {
-            /// Determine width and height
-            uint32 width = def->width;
-            uint32 height = def->height;
-            uint fsaa = 0;
-            String fsaaHint;
-            bool hwGamma = false;
-            
             // Skip this one if we're only (re)creating for a resize & it's not derived
             // from the target size
-            if (forResizeOnly && width != 0 && height != 0)
+            if (forResizeOnly && def->width != 0 && def->height != 0)
                 continue;
+
+            /// Determine width and height
+            CompositionTechnique::TextureDefinition derivedDef = *def;
+            String fsaaHint;
+            deriveOptionsFromRenderTarget(derivedDef, fsaaHint);
             
-            deriveTextureRenderTargetOptions(def->name, &hwGamma, &fsaa, &fsaaHint);
-            
-            if(width == 0)
+            if(def->width == 0)
             {
-                width = static_cast<float>(mChain->getViewport()->getActualWidth()) * def->widthFactor;
-                width = width == 0 ? 1 : width;
+                derivedDef.width = static_cast<float>(mChain->getViewport()->getActualWidth()) * def->widthFactor;
+                derivedDef.width = derivedDef.width == 0 ? 1 : derivedDef.width;
             }
-            if(height == 0)
+            if(def->height == 0)
             {
-                height = static_cast<float>(mChain->getViewport()->getActualHeight()) * def->heightFactor;
-                height = height == 0 ? 1 : height;
+                derivedDef.height = static_cast<float>(mChain->getViewport()->getActualHeight()) * def->heightFactor;
+                derivedDef.height = derivedDef.height == 0 ? 1 : derivedDef.height;
             }
-            
-            // determine options as a combination of selected options and possible options
-            if (!def->fsaa)
-            {
-                fsaa = 0;
-                fsaaHint = BLANKSTRING;
-            }
-            hwGamma = hwGamma || def->hwGammaWrite;
-            
+
+            // need dummy counter as there may be multiple definitions with the same name in the chain
+            String baseName = StringUtil::format("%s.chain%zu.%s", def->name.c_str(), dummyCounter++,
+                                                 mChain->getViewport()->getTarget()->getName().c_str());
+
             /// Make the tetxure
             if (def->formatList.size() > 1)
             {
-                String MRTbaseName = "mrt/c" + StringConverter::toString(dummyCounter++) + 
-                "/" + def->name + "/" + mChain->getViewport()->getTarget()->getName();
-                MultiRenderTarget* mrt = 
-                Root::getSingleton().getRenderSystem()->createMultiRenderTarget(MRTbaseName);
+                mrt = Root::getSingleton().getRenderSystem()->createMultiRenderTarget(baseName);
                 mLocalMRTs[def->name] = mrt;
-                
+
                 // create and bind individual surfaces
-                size_t atch = 0;
-                for (PixelFormatList::iterator p = def->formatList.begin(); 
-                     p != def->formatList.end(); ++p, ++atch)
+                uint8 atch = 0;
+                for (auto p : def->formatList)
                 {
-                    
-                    String texname = MRTbaseName + "/" + StringConverter::toString(atch);
+                    derivedDef.name = StringUtil::format("mrt%d.%s", atch, baseName.c_str());
                     String mrtLocalName = getMRTTexLocalName(def->name, atch);
-                    TexturePtr tex;
-                    if (def->pooled)
-                    {
-                        // get / create pooled texture
-                        tex = CompositorManager::getSingleton().getPooledTexture(texname,
-                                                                                 mrtLocalName, 
-                                                                                 width, height, *p, fsaa, fsaaHint,  
-                                                                                 hwGamma && !PixelUtil::isFloatingPoint(*p), 
-                                                                                 assignedTextures, this, def->scope, def->type);
-                    }
-                    else
-                    {
-                        tex = TextureManager::getSingleton().createManual(texname,
-                                                                          RGN_INTERNAL, def->type,
-                                                                          width, height, 0, *p, TU_RENDERTARGET, 0,
-                                                                          hwGamma && !PixelUtil::isFloatingPoint(*p), fsaa, fsaaHint ); 
-                    }
-                    
-                    RenderTexture* rt = tex->getBuffer()->getRenderTarget();
+                    TexturePtr mrttex = getLocalTexture(derivedDef, p, fsaaHint, mrtLocalName, assignedTextures);
+                    RenderTexture* rt = mrttex->getBuffer()->getRenderTarget();
                     rt->setAutoUpdated(false);
                     mrt->bindSurface(atch, rt);
-                    
-                    // Also add to local textures so we can look up
-                    mLocalTextures[mrtLocalName] = tex;
-                    
+
+                    atch++;
                 }
-                
-                setupRenderTarget(mrt, def->depthBufferId);
             }
             else
             {
-                String texName =  "c" + StringConverter::toString(dummyCounter++) + 
-                "/" + def->name + "/" + mChain->getViewport()->getTarget()->getName();
-                
+                derivedDef.name = baseName;
                 // space in the name mixup the cegui in the compositor demo
                 // this is an auto generated name - so no spaces can't hart us.
-                std::replace( texName.begin(), texName.end(), ' ', '_' ); 
-                
-                hwGamma = hwGamma && !PixelUtil::isFloatingPoint(def->formatList[0]);
+                std::replace( derivedDef.name.begin(), derivedDef.name.end(), ' ', '_' );
 
-                TexturePtr tex;
-                if (def->pooled)
-                {
-                    // get / create pooled texture
-                    tex = CompositorManager::getSingleton().getPooledTexture(texName, 
-                                                                             def->name, width, height, def->formatList[0], fsaa, fsaaHint,
-                                                                             hwGamma, assignedTextures,
-                                                                             this, def->scope, def->type);
-                }
-                else
-                {
-                    tex = TextureManager::getSingleton().createManual(
-                        texName, RGN_INTERNAL, def->type, width, height, 0, def->formatList[0],
-                        TU_RENDERTARGET, 0, hwGamma, fsaa, fsaaHint);
-                }
-
-                mLocalTextures[def->name] = tex;
-
-                for(size_t i = 0; i < tex->getNumFaces(); i++)
-                    setupRenderTarget(tex->getBuffer(i)->getRenderTarget(), def->depthBufferId);
+                tex = getLocalTexture(derivedDef, def->formatList[0], fsaaHint, def->name, assignedTextures);
             }
+        }
+
+        if(mrt)
+        {
+            setupRenderTarget(mrt, def->depthBufferId);
+        }
+        else
+        {
+            for(size_t i = 0; i < tex->getNumLayers(); i++)
+                setupRenderTarget(tex->getRenderTarget(i), def->depthBufferId);
         }
     }
 
@@ -812,8 +779,8 @@ void CompositorInstance::setupRenderTarget(RenderTarget* rendTarget, uint16 dept
 }
 
 //---------------------------------------------------------------------
-void CompositorInstance::deriveTextureRenderTargetOptions(
-    const String& texname, bool *hwGammaWrite, uint *fsaa, String* fsaaHint)
+void CompositorInstance::deriveOptionsFromRenderTarget(CompositionTechnique::TextureDefinition& def,
+                                                          String& fsaaHint)
 {
     // search for passes on this texture def that either include a render_scene
     // or use input previous
@@ -822,7 +789,7 @@ void CompositorInstance::deriveTextureRenderTargetOptions(
     const CompositionTechnique::TargetPasses& passes = mTechnique->getTargetPasses();
     for (auto *tp : passes)
     {
-        if (tp->getOutputName() == texname)
+        if (tp->getOutputName() == def.name)
         {
             if (tp->getInputMode() == CompositionTargetPass::IM_PREVIOUS)
             {
@@ -867,22 +834,23 @@ void CompositorInstance::deriveTextureRenderTargetOptions(
     {
         // Ok, inherit settings from target
         RenderTarget* target = mChain->getViewport()->getTarget();
-        *hwGammaWrite = target->isHardwareGammaEnabled();
-        *fsaa = target->getFSAA();
-        *fsaaHint = target->getFSAAHint();
+        def.hwGammaWrite = def.hwGammaWrite || target->isHardwareGammaEnabled();
+        if(def.fsaa == 1)
+        {
+            def.fsaa = target->getFSAA();
+            fsaaHint = target->getFSAAHint();
+        }
     }
-    else
+    else if (def.fsaa == 1)
     {
-        *hwGammaWrite = false;
-        *fsaa = 0;
-        *fsaaHint = BLANKSTRING;
+        def.fsaa = 0;
     }
 
 }
 //---------------------------------------------------------------------
 String CompositorInstance::getMRTTexLocalName(const String& baseName, size_t attachment)
 {
-    return StringUtil::format("%s/%zu", baseName.c_str(), attachment);
+    return StringUtil::format("mrt%zu.%s", attachment, baseName.c_str());
 }
 //-----------------------------------------------------------------------
 void CompositorInstance::freeResources(bool forResizeOnly, bool clearReserveTextures)
@@ -978,12 +946,6 @@ void CompositorInstance::freeResources(bool forResizeOnly, bool clearReserveText
     // will not be released here
     CompositorManager::getSingleton().freePooledTextures(true);
 }
-//---------------------------------------------------------------------
-RenderTarget* CompositorInstance::getRenderTarget(const String& name, int slice)
-{
-    return getTargetForTex(name, slice);
-}
-
 CompositionTechnique::TextureDefinition*
 CompositorInstance::resolveTexReference(const CompositionTechnique::TextureDefinition* texDef)
 {
@@ -1024,12 +986,14 @@ CompositorInstance::resolveTexReference(const CompositionTechnique::TextureDefin
 }
 
 //-----------------------------------------------------------------------
-RenderTarget *CompositorInstance::getTargetForTex(const String &name, int slice)
+RenderTarget *CompositorInstance::getRenderTarget(const String &name, int slice)
 {
     // try simple texture
     LocalTextureMap::iterator i = mLocalTextures.find(name);
     if(i != mLocalTextures.end())
-        return i->second->getBuffer(slice)->getRenderTarget();
+    {
+        return i->second->getRenderTarget(slice);
+    }
 
     // try MRTs
     LocalMRTMap::iterator mi = mLocalMRTs.find(name);

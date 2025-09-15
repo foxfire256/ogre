@@ -336,7 +336,8 @@ bool FFPLighting::preAddToRenderState(const RenderState* renderState, Pass* srcP
 	
 	setTrackVertexColourType(srcPass->getVertexColourTracking());
 
-	mSpecularEnable = srcPass->getShininess() > 0.0 && srcPass->getSpecular() != ColourValue::Black;
+	mSpecularEnable = srcPass->getShininess() > 0.0 &&
+		(srcPass->getSpecular() != ColourValue::Black || (srcPass->getVertexColourTracking() & TVC_SPECULAR) != 0);
 
 	// Case this pass should run once per light(s) -> override the light policy.
 	if (srcPass->getIteratePerLight())
@@ -372,23 +373,17 @@ const String& FFPLightingFactory::getType() const
 }
 
 //-----------------------------------------------------------------------
-SubRenderState*	FFPLightingFactory::createInstance(ScriptCompiler* compiler, 
-												PropertyAbstractNode* prop, Pass* pass, SGScriptTranslator* translator)
+SubRenderState* FFPLightingFactory::createInstance(const ScriptProperty& prop, Pass* pass,
+                                                   SGScriptTranslator* translator)
 {
-    if (prop->name != "lighting_stage" || prop->values.empty())
+    if (prop.name != "lighting_stage" || prop.values[0] != "ffp")
         return NULL;
 
-    auto it = prop->values.begin();
+    SubRenderState* ret = createOrRetrieveInstance(translator);
 
-    SubRenderState* ret = NULL;
-    if ((*it++)->getString() == "ffp")
+    if(prop.values.size() >= 2)
     {
-        ret = createOrRetrieveInstance(translator);
-    }
-
-    if(ret && prop->values.size() >= 2)
-    {
-        ret->setParameter((*it)->getString(), "true"); // normalise
+        ret->setParameter(prop.values[1], "true"); // normalise
     }
 
     return ret;

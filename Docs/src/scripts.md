@@ -279,7 +279,7 @@ As Target, but this is the single final result of all operations. The size and p
 
 </dd> <dt>Target Section</dt> <dd>
 
-A Target may be rendered to many times in the course of a composition effect. In particular if you ’ping pong’ a convolution between a couple of textures, you will have more than one Target Sections per Target. Target Sections are declared in the script using a [target or target\_output line](#Compositor-Target-Passes), the latter being the final output of which there can be only one.
+A Target may be rendered to many times in the course of a composition effect. In particular if you ’ping pong’ a convolution between a couple of textures, you will have more than one Target Sections per Target. Target Sections are declared in the script using a [target or target_output line](#Compositor-Target-Passes), the latter being the final output of which there can be only one.
 @note Internally this is referred to as Ogre::CompositionTargetPass
 
 </dd> <dt>Pass</dt> <dd>
@@ -315,11 +315,11 @@ Format: technique { }
 Techniques can have the following nested elements:
 
 -   [texture](#compositor-texture)
--   [texture\_ref](#compositor_005ftexture_005fref)
+-   [texture_ref](#compositor_005ftexture_005fref)
 -   [scheme](#compositor_005fscheme)
--   [compositor\_logic](#compositor_005flogic)
+-   [compositor_logic](#compositor_005flogic)
 -   [target](#Compositor-Target-Passes)
--   [target\_output](#Compositor-Target-Passes)
+-   [target_output](#Compositor-Target-Passes)
 
 <a name="compositor_005ftexture"></a><a name="texture-2"></a>
 
@@ -327,7 +327,7 @@ Techniques can have the following nested elements:
 
 This declares a render texture for use in subsequent @ref Compositor-Target-Passes.
 @par
-Format: texture &lt;name&gt; &lt;width&gt; &lt;height&gt; &lt;PixelFormat&gt; \[&lt;MRT Pixel_Format2&gt;\] \[&lt;MRT Pixel_FormatN&gt;\] \[pooled\] \[gamma\] \[no\_fsaa\] \[depth\_pool &lt;poolId&gt;\] \[&lt;scope&gt;\] \[&lt;cubic&gt;\]
+Format: texture &lt;name&gt; &lt;width&gt; &lt;height&gt; \[depth\] &lt;PixelFormat&gt; \[&lt;MRT Pixel_Format2&gt;\] \[&lt;MRT Pixel_FormatN&gt;\] \[pooled\] \[gamma\] \[no\_fsaa\] [fsaa &lt;level&gt;] \[depth\_pool &lt;poolId&gt;\] \[&lt;scope&gt;\] \[cubic|2d_array\]
 
 @param name
 A name to give the render texture, which must be unique within this compositor. This name is used to reference the texture in @ref Compositor-Target-Passes, when the texture is rendered to, and in @ref Compositor-Passes, when the texture is used as input to a material rendering a fullscreen quad.
@@ -338,10 +338,12 @@ A name to give the render texture, which must be unique within this compositor. 
 The dimensions of the render texture. You can either specify a fixed width and height, or you can request that the texture is based on the physical dimensions of the viewport to which the compositor is attached. The options for the latter are either of
 <ul>
 <li> @c target_width and @c target_height
-<li> @c target_width_scaled &lt;factor&gt; and @c target_height_scaled &lt;factor&gt;
+<li> `target_width_scaled <factor>` and `target_height_scaled <factor>`
 </ul>
 where &lt;factor&gt; is the amount by which you wish to multiply the size of the main target to derive the dimensions.
 @endparblock
+@param depth
+The number of slices in the texture. This is only relevant for @c 2d_array textures. The default is 1 slice.
 @param PixelFormat
 The Ogre::PixelFormat of the render texture. This affects how much memory it will take, what colour channels will be available, and what precision you will have within those channels.
 You can in fact repeat this element if you wish. If you do so, that means that this render texture becomes a Multiple Render Target (MRT), when the GPU writes to multiple textures at once.
@@ -352,23 +354,32 @@ If you use a depth format here, the texture will be used as the depth attachment
 If present, this directive makes this texture ’pooled’ among compositor instances, which can save some memory.
 
 @param gamma
-If present, this directive means that sRGB gamma correction will be enabled on writes to this texture. You should remember to include the opposite sRGB conversion when you read this texture back in another material, such as a quad. This option will automatically enabled if you use a render\_scene pass on this texture and the viewport on which the compositor is based has sRGB write support enabled.
+If present, this directive means that sRGB gamma correction will be enabled on writes to this texture. You should remember to include the opposite sRGB conversion when you read this texture back in another material, such as a quad. This option will automatically enabled if you use a `render_scene` pass on this texture and the viewport on which the compositor is based has sRGB write support enabled.
 
 @param no\_fsaa
-If present, this directive disables the use of anti-aliasing on this texture. FSAA is only used if this texture is subject to a render\_scene pass and FSAA was enabled on the original viewport on which this compositor is based; this option allows you to override it and disable the FSAA if you wish.
+@param fsaa
+If present, this directive controls the use of anti-aliasing on this texture. FSAA is only used if this texture is subject to a `render_scene` pass.
+- `fsaa 1` (the default) will match the FSAA level of the viewport
+- `fsaa 0` will turn off FSAA for this texture. `fsaa 0` and `no_fsaa` have the same effect.
+- `fsaa N` will set FSAA to level N.
 
 @param depth\_pool
-When present, this directive has to be followed by an integer. This directive is unrelated to the "pooled" directive. This one sets from which Depth buffer pool the depth buffer will be chosen from. All RTs from all compositors (including render windows if the render system API allows it) with the same pool ID share the same depth buffers (following the rules of the current render system APIs, (check RenderSystemCapabilities flags to find the rules). When the pool ID is 0, no depth buffer is used. This can be helpful for passes that don’t require a Depth buffer at all, potentially saving performance and memory. Default value is 1.
-Ignored with depth pixel formats.
+When present, this directive has to be followed by an integer. This directive is unrelated to the "pooled" directive. This directive determines from which Depth buffer pool the depth buffer will be selected. All RTs from all compositors (including render windows if the render system API allows it) with the same pool ID share the same depth buffers.
+- `depth_pool 0` means no depth buffer is used, which can save memory for passes that do not need a Depth buffer.
+- Default is `depth_pool 1`.
+- Ignored with depth pixel formats.
 
 @param scope
-If present, this directive sets the scope for the texture for being accessed by other compositors using the [texture\_ref](#compositor_005ftexture_005fref) directive. There are three options : 
+If present, this directive sets the scope for the texture for being accessed by other compositors using the [texture_ref](#compositor_005ftexture_005fref) directive. There are three options:
 1. @c local_scope (which is also the default) means that only the compositor defining the texture can access it. 
 2. @c chain_scope means that the compositors after this compositor in the chain can reference its textures, and 
 3. @c global_scope means that the entire application can access the texture. This directive also affects the creation of the textures (global textures are created once and thus can’t be used with the pooled directive, and can’t rely on viewport size).
 
 @param cubic
 This texture is of type Ogre::TEX_TYPE_CUBE_MAP - i.e. made up of 6 2D textures which are pasted around the inside of a cube.
+
+@param 2d_array
+This texture is of type Ogre::TEX_TYPE_2D_ARRAY - i.e. made up of N 2D textures which are stacked on top of each other in a single texture.
 
 @par
 Example: texture rt0 512 512 PF\_R8G8B8A8
@@ -440,14 +451,14 @@ Format: target\_output { }
 
 The contents of both are identical, the only real difference is that you can only have a single target\_output entry, whilst you can have many target entries. 
 
-Note, the target entry can refer to @ref Cube-map-textures. Therefore, it takes an optional _decimal_ slice parameter that specifies which face you want to render on. The default is 0, hence +X.
+Note, the target entry can refer to @ref Cube-map-textures and 2D Array textures. Therefore, it takes an optional _decimal_ slice parameter that specifies which face you want to render on. The default is 0, hence +X.
 
 Here are the attributes you can use in a ’target’ or ’target\_output’ section of a .compositor script:
 
 -   [input](#compositor_005ftarget_005finput)
--   [only\_initial](#only_005finitial)
--   [visibility\_mask](#visibility_005fmask)
--   [lod\_bias](#compositor_005flod_005fbias)
+-   [only_initial](#only_005finitial)
+-   [visibility_mask](#visibility_005fmask)
+-   [lod_bias](#compositor_005flod_005fbias)
 -   [material_scheme](#material_005fscheme)
 -   [shadows](#compositor_005fshadows)
 
@@ -540,7 +551,7 @@ This kind of pass configures stencil operations for the subsequent passes. It ca
 
 </dd> <dt>render\_scene</dt> <dd>
 
-This kind of pass performs a regular rendering of the scene. It will use the [visibility\_mask](#visibility_005fmask), [lod\_bias](#compositor_005flod_005fbias), and [material\_scheme](#material_005fscheme) from the parent target pass.
+This kind of pass performs a regular rendering of the scene. It will use the [visibility_mask](#visibility_005fmask), [lod_bias](#compositor_005flod_005fbias), and [material_scheme](#material_005fscheme) from the parent target pass.
 
 </dd> <dt>render\_quad</dt> <dd>
 
@@ -635,9 +646,9 @@ Format: thread_groups &lt;groups_x&gt; &lt;groups_y&gt; &lt;groups_z&gt;
 
 Here are the attributes you can use in a @c render_scene section of a .compositor script:
 
--   [first\_render\_queue](#first_005frender_005fqueue)
--   [last\_render\_queue](#last_005frender_005fqueue)
--   [material\_scheme](#compositor_005fpass_005fmaterial_005fscheme)
+-   [first_render_queue](#first_005frender_005fqueue)
+-   [last_render_queue](#last_005frender_005fqueue)
+-   [material_scheme](#compositor_005fpass_005fmaterial_005fscheme)
 -   [camera](#camera)
 
 <a name="first_005frender_005fqueue"></a><a name="first_005frender_005fqueue-1"></a>
@@ -693,9 +704,9 @@ Format: pass clear { }
 Here are the attributes you can use in a ’clear’ section of a .compositor script:
 
 -   [buffers](#compositor_005fclear_005fbuffers)
--   [colour\_value](#compositor_005fclear_005fcolour_005fvalue)
--   [depth\_value](#compositor_005fclear_005fdepth_005fvalue)
--   [stencil\_value](#compositor_005fclear_005fstencil_005fvalue) <a name="compositor_005fclear_005fbuffers"></a><a name="buffers"></a>
+-   [colour_value](#compositor_005fclear_005fcolour_005fvalue)
+-   [depth_value](#compositor_005fclear_005fdepth_005fvalue)
+-   [stencil_value](#compositor_005fclear_005fstencil_005fvalue) <a name="compositor_005fclear_005fbuffers"></a><a name="buffers"></a>
 
     ### buffers
 
@@ -750,13 +761,13 @@ Format: pass stencil { }
 Here are the attributes you can use in a ’stencil’ section of a .compositor script:
 
 -   [check](#compositor_005fstencil_005fcheck)
--   [comp\_func](#compositor_005fstencil_005fcomp_005ffunc)
--   [ref\_value](#compositor_005fstencil_005fref_005fvalue)
+-   [comp_func](#compositor_005fstencil_005fcomp_005ffunc)
+-   [ref_value](#compositor_005fstencil_005fref_005fvalue)
 -   [mask](#compositor_005fstencil_005fmask)
--   [fail\_op](#compositor_005fstencil_005ffail_005fop)
--   [depth\_fail\_op](#compositor_005fstencil_005fdepth_005ffail_005fop)
--   [pass\_op](#compositor_005fstencil_005fpass_005fop)
--   [two\_sided](#compositor_005fstencil_005ftwo_005fsided) <a name="compositor_005fstencil_005fcheck"></a><a name="check"></a>
+-   [fail_op](#compositor_005fstencil_005ffail_005fop)
+-   [depth_fail_op](#compositor_005fstencil_005fdepth_005ffail_005fop)
+-   [pass_op](#compositor_005fstencil_005fpass_005fop)
+-   [two_sided](#compositor_005fstencil_005ftwo_005fsided) <a name="compositor_005fstencil_005fcheck"></a><a name="check"></a>
 
     ### check
 
@@ -961,9 +972,9 @@ Must be a name unique among all other elements / containers by which to identify
 
 The properties which can be included within the braces depend on the custom type. However the following are always valid:
 
--   [metrics\_mode](#metrics_005fmode)
--   [horz\_align](#horz_005falign)
--   [vert\_align](#vert_005falign)
+-   [metrics_mode](#metrics_005fmode)
+-   [horz_align](#horz_005falign)
+-   [vert_align](#vert_005falign)
 -   [left](#left)
 -   [top](#overlaytopelement)
 -   [width](#width)
@@ -1110,7 +1121,7 @@ Default: vert\_align top<br>
 
 ## left
 
-Sets the horizontal position of the element relative to it’s parent.
+Sets the horizontal position of the element relative to its parent.
 @par
 Format: left &lt;value&gt;<br> Example: left 0.5
 
@@ -1122,7 +1133,7 @@ Default: left 0<br>
 
 ## top
 
-Sets the vertical position of the element relative to it’s parent.
+Sets the vertical position of the element relative to its parent.
 @par
 Format: top &lt;value&gt;<br> Example: top 0.5
 
@@ -1202,7 +1213,7 @@ This section describes how you define their custom attributes in an .overlay scr
 
 This is the most bog-standard container you can use. It is a rectangular area which can contain other elements (or containers) and may or may not have a background, which can be tiled however you like. The background material is determined by the material attribute, but is only displayed if transparency is off.
 
-@param transparent <b>&lt;true | false&gt;</b> If set to ’true’ the panel is transparent and is not rendered itself, it is just used as a grouping level for it’s children.
+@param transparent <b>&lt;true | false&gt;</b> If set to ’true’ the panel is transparent and is not rendered itself, it is just used as a grouping level for its children.
 
 @param tiling <b>&lt;layer&gt; &lt;x\_tile&gt; &lt;y\_tile&gt;</b> Sets the number of times the texture(s) of the material are tiled across the panel in the x and y direction. &lt;layer&gt; is the texture layer, from 0 to the number of texture layers in the material minus one. By setting tiling per layer you can create some nice multitextured backdrops for your panels, this works especially well when you animate one of the layers.
 
@@ -1222,7 +1233,7 @@ This is a slightly more advanced version of Panel, where instead of just a singl
 
 ## TextArea (element) {#TextArea}
 
-This is a generic element that you can use to render text. It uses fonts which can be defined in code using the FontManager and Font classes, or which have been predefined in .fontdef files. See the font definitions section for more information.
+This is a generic element that you can use to render text. It uses fonts which can be defined in code using the Ogre::FontManager and0Ogre:: Font classes, or which have been predefined in @c .fontdef files. See the font definitions section for more information.
 
 @param font\_name <b>&lt;name&gt;</b> The name of the font to use. This font must be defined in a .fontdef file to ensure it is available at scripting time.
 
@@ -1264,16 +1275,16 @@ font <font_name>
 
 # Using an existing font texture
 
-If you have one or more artists working with you, no doubt they can produce you a very nice font texture. OGRE supports full colour font textures, or alternatively you can keep them monochrome / greyscale and use TextArea’s colouring feature. Font textures should always have an alpha channel, preferably an 8-bit alpha channel such as that supported by TGA and PNG files, because it can result in much nicer edges. To use an existing texture, here are the settings you need:
+If you have one or more artists working with you, no doubt they can produce you a very nice font texture. OGRE supports full colour font textures, or alternatively you can keep them monochrome / greyscale and use the colouring feature of Ogre::TextAreaOverlayElement. Font textures should always have an alpha channel, preferably an 8-bit alpha channel such as that supported by TGA and PNG files, because it can result in much nicer edges. To use an existing texture, here are the settings you need:
 
 @param type <b>image</b> This just tells OGRE you want a pre-drawn font.
 
 @param source <b>&lt;filename&gt;</b> This is the name of the image file you want to load. This will be loaded from the standard resource locations and can be of any type OGRE supports, although JPEG is not recommended because of the lack of alpha and the lossy compression. I recommend PNG format which has both good lossless compression and an 8-bit alpha channel.
 
 @param glyph <b>&lt;character&gt; &lt;u1&gt; &lt;v1&gt; &lt;u2&gt; &lt;v2&gt;</b> This provides the texture coordinates for the specified character. You must repeat this for every character you have in the texture. The first 2 numbers are the x and y of the top-left corner, the second two are the x and y of the bottom-right corner. Note that you really should use a common height for all characters, but widths can vary because of proportional fonts.
-’character’ is either an ASCII character for non-extended 7-bit ASCII, or for extended glyphs, a unicode decimal value, which is identified by preceding the number with a ’u’ - e.g. ’u0546’ denotes unicode value 546.
+’character’ is either an ASCII character for non-extended 7-bit ASCII, or for extended glyphs, a unicode decimal value, which is identified by preceding the number with a ’u’ - e.g. @c u0546 denotes unicode value 546.
 
-A note for Windows users: I recommend using [BitmapFontBuilder](<http://www.lmnopc.com/bitmapfontbuilder/>), a free tool which will generate a texture and export character widths for you, you can find a tool for converting the binary output from this into ’glyph’ lines in the Tools folder.<br>
+You can use [font2bitmap](https://stmn.github.io/font2bitmap/), a web tool which will generate a texture for you. You will still have to manually create the @c glyph entries, but it will give you a good starting point.
 
 <a name="Generating-a-font-texture"></a>
 
@@ -1293,4 +1304,6 @@ Here are the attributes you need to supply:
 
 @param code\_points <b>nn-nn \[nn-nn\] ..</b> This directive allows you to specify which unicode code points should be generated as glyphs into the font texture. If you don’t specify this, code points 32-126 will be generated by default which covers the ASCII glyphs. If you use this flag, you should specify a space-separated list of inclusive code point ranges of the form ’start-end’. Numbers must be decimal.
 
-You can also create new fonts at runtime by using the FontManager if you wish.
+@param merge_font **name [name2]** @copydetails Ogre::Font::addMergeFont
+
+You can also create new fonts at runtime by using the Ogre::FontManager if you wish.

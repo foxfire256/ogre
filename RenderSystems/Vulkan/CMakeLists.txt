@@ -18,18 +18,19 @@ set( SOURCE_FILES ${SOURCE_FILES})
 
 add_library(RenderSystem_Vulkan ${OGRE_LIB_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
 
-if(WIN32)
-    target_include_directories(RenderSystem_Vulkan PRIVATE $ENV{VULKAN_SDK}/Include)
-    target_link_directories(RenderSystem_Vulkan PRIVATE $ENV{VULKAN_SDK}/Lib)
+if(DEFINED ENV{VULKAN_SDK})
+    target_include_directories(RenderSystem_Vulkan SYSTEM PRIVATE $ENV{VULKAN_SDK}/include)
+    target_link_directories(RenderSystem_Vulkan PUBLIC $ENV{VULKAN_SDK}/lib)
+endif()
 
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/volk.c"
-        PROPERTIES COMPILE_DEFINITIONS VK_USE_PLATFORM_WIN32_KHR)
+if(WIN32)
+    target_compile_definitions(RenderSystem_Vulkan PRIVATE VK_USE_PLATFORM_WIN32_KHR)
 elseif(ANDROID)
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/volk.c"
-        PROPERTIES COMPILE_DEFINITIONS VK_USE_PLATFORM_ANDROID_KHR)
+    target_compile_definitions(RenderSystem_Vulkan PRIVATE VK_USE_PLATFORM_ANDROID_KHR)
+elseif(OGRE_USE_WAYLAND)
+    target_compile_definitions(RenderSystem_Vulkan PRIVATE VK_USE_PLATFORM_WAYLAND_KHR)
 else()
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/volk.c"
-        PROPERTIES COMPILE_DEFINITIONS VK_USE_PLATFORM_XLIB_KHR)
+    target_compile_definitions(RenderSystem_Vulkan PRIVATE VK_USE_PLATFORM_XLIB_KHR)
     target_link_libraries(RenderSystem_Vulkan PRIVATE ${X11_LIBRARIES})
 endif()
 

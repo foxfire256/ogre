@@ -45,8 +45,8 @@ namespace Ogre {
 
     /** Class representing colour.
 
-            Colour is represented as 4 components, each of which is a
-            floating-point value from 0.0 to 1.0.
+        Colour is represented as 4 components, each of which is a
+        floating-point value from 0.0 to 1.0.
         @par
             The 3 'normal' colour components are red, green and blue, a higher
             number indicating greater amounts of that component in the colour.
@@ -57,14 +57,14 @@ namespace Ogre {
     class _OgreExport ColourValue
     {
     public:
-        static const ColourValue ZERO;
-        static const ColourValue Black;
-        static const ColourValue White;
-        static const ColourValue Red;
-        static const ColourValue Green;
-        static const ColourValue Blue;
+        static const ColourValue &ZERO;
+        static const ColourValue &Black;
+        static const ColourValue &White;
+        static const ColourValue &Red;
+        static const ColourValue &Green;
+        static const ColourValue &Blue;
 
-        explicit ColourValue( float red = 1.0f,
+        explicit constexpr ColourValue( float red = 1.0f,
                     float green = 1.0f,
                     float blue = 1.0f,
                     float alpha = 1.0f ) : r(red), g(green), b(blue), a(alpha)

@@ -146,7 +146,7 @@ You can also create Mesh objects manually by calling the Ogre::MeshManager::crea
 
 Mesh objects are the basis for the individual movable objects in the world, which are called @ref Entities.
 
-Mesh objects can also be animated using See @ref Skeletal-Animation.
+Mesh objects can also be animated using @ref Skeletal-Animation and @ref Vertex-Animation.
 
 # Entities {#Entities}
 
@@ -162,23 +162,27 @@ When a Ogre::Mesh is loaded, it automatically comes with a number of materials d
 
 To understand how this works, you have to know that all Mesh objects are actually composed of Ogre::SubMesh objects, each of which represents a part of the mesh using one Material. If a Ogre::Mesh uses only one Ogre::Material, it will only have one Ogre::SubMesh.
 
-When an Ogre::Entity is created based on this Mesh, it is composed of (possibly) multiple Ogre::SubEntity objects, each matching 1 for 1 with the Ogre::SubMesh objects from the original Mesh. You can access the Ogre::SubEntity objects using the Ogre::Entity::getSubEntity method. Once you have a reference to a Ogre::SubEntity, you can change the material it uses by calling it’s setMaterialName method. In this way you can make an Ogre::Entity deviate from the default materials and thus create an individual looking version of it.
+When an Ogre::Entity is created based on this Mesh, it is composed of (possibly) multiple Ogre::SubEntity objects, each matching 1 for 1 with the Ogre::SubMesh objects from the original Mesh. You can access the Ogre::SubEntity objects using the Ogre::Entity::getSubEntity method. Once you have a reference to a Ogre::SubEntity, you can change the material it uses by calling its setMaterialName method. In this way you can make an Ogre::Entity deviate from the default materials and thus create an individual looking version of it.
 
 # Materials {#Materials}
 
-The Ogre::Material object controls how objects in the scene are rendered. It specifies what basic surface properties objects have such as reflectance of colours, shininess etc, how many texture layers are present, what images are on them and how they are blended together, what special effects are applied such as environment mapping, what culling mode is used, how the textures are filtered etc.
+The Ogre::Material is your primary tool for controlling how objects in your scene look. While the shape of an object is defined by its mesh, the material dictates everything else about its appearance. It specifies what basic surface properties objects have (like reflectance of colours, shininess etc.), texture layers (including their images, filtering, and how they are blended together), special effects (such as environment mapping), culling modes and more.
 
-Materials can either be set up programmatically, by calling Ogre::MaterialManager::create and tweaking the settings, or by specifying it in a ’script’ which is loaded at runtime. See [Material Scripts](@ref Material-Scripts) for more info.
+## Managing {#Materials-Manage}
 
-Basically everything about the appearance of an object apart from it’s shape is controlled by the Material class.
+The Ogre::MaterialManager manages the collection of materials available to the scene. Materials can either be set up programmatically, by calling Ogre::MaterialManager::create and tweaking the settings, or by specifying it in a ’script’ which is loaded at runtime. See @ref Material-Scripts for more info.
 
-The Ogre::MaterialManager class manages the master list of materials available to the scene. The list can be added to by the application by calling Ogre::MaterialManager::create, or by loading a Mesh (which will in turn load material properties).
+Entities automatically have Material’s associated with them if they use a Ogre::Mesh object, since the Ogre::Mesh object typically sets up its required materials on loading. You can also customise the material used by an entity as described in @ref Entities. Just create a new Material, set it up how you like (you can copy an existing material into it if you like using a standard assignment statement) and point the SubEntity entries at it using Ogre::SubEntity::setMaterial().
 
-@copydetails Ogre::MaterialManager::getDefaultSettings()
+## Structure {#Materials-Structure}
 
-You can alter these settings by calling Ogre::MaterialManager::getDefaultSettings() and making the required changes to the Material which is returned.
+A material comprises one or more @ref Techniques, which can be thought of as distinct "recipes" for rendering the material. Providing multiple techniques allows you to define lower levels of detail for materials, conserving rendering power when objects are distant or rendered as reflections.
+Furthermore, each technique can be associated with a scheme, enabling you to switch the entire rendering pipeline.
+By registering a Ogre::MaterialManager::Listener, you can even generate techniques on-the-fly for new schemes. The @ref rtss leverages this concept by adding a shader-based technique for materials that lack their own shaders.
 
-Entities automatically have Material’s associated with them if they use a Ogre::Mesh object, since the Ogre::Mesh object typically sets up it’s required materials on loading. You can also customise the material used by an entity as described in @ref Entities. Just create a new Material, set it up how you like (you can copy an existing material into it if you like using a standard assignment statement) and point the SubEntity entries at it using Ogre::SubEntity::setMaterialName().
+Each technique can be made up of several @ref Passes, that is a complete render of the object can be performed multiple times with different settings in order to produce composite effects. Each pass has a number of top-level attributes such as ’ambient’ to set the amount & colour of the ambient light reflected by the material. Some of these options do not apply if you are using vertex programs, See @ref Passes for more details.
+
+Within each pass, there can be zero or many @ref Texture-Units in use. These define the texture to be used, and optionally some blending operations (which use multitexturing) and texture effects.
 
 
 
@@ -226,7 +230,7 @@ The third important class is Ogre::OverlayManager. Whenever an application wishe
 
 Only OverlayContainers can be added direct to an overlay. The reason is that each level of container establishes the Zorder of the elements contained within it, so if you nest several containers, inner containers have a higher Z-order than outer ones to ensure they are displayed correctly. To add a container (such as a Panel) to the overlay, simply call Ogre::Overlay::add2D.
 
-If you wish to add child elements to that container, call Ogre::OverlayContainer::addChild. Child elements can be Ogre::OverlayElements or Ogre::OverlayContainer instances themselves. Remember that the position of a child element is relative to the top-left corner of it’s parent.
+If you wish to add child elements to that container, call Ogre::OverlayContainer::addChild. Child elements can be Ogre::OverlayElements or Ogre::OverlayContainer instances themselves. Remember that the position of a child element is relative to the top-left corner of its parent.
 
 <a name="A-word-about-2D-coordinates"></a>
 
@@ -241,7 +245,7 @@ This mode is useful when you want to specify an exact size for your overlay item
 
 </dd> <dt>Relative Mode</dt> <dd>
 
-This mode is useful when you want items in the overlay to be the same size on the screen no matter what the resolution. In relative mode, the top-left of the screen is (0,0) and the bottom-right is (1,1). So if you place an element at (0.5, 0.5), it’s top-left corner is placed exactly in the center of the screen, no matter what resolution the application is running in. The same principle applies to sizes; if you set the width of an element to 0.5, it covers half the width of the screen. Note that because the aspect ratio of the screen is typically 1.3333 : 1 (width : height), an element with dimensions (0.25, 0.25) will not be square, but it will take up exactly 1/16th of the screen in area terms. If you want square-looking areas you will have to compensate using the typical aspect ratio e.g. use (0.1875, 0.25) instead.
+This mode is useful when you want items in the overlay to be the same size on the screen no matter what the resolution. In relative mode, the top-left of the screen is (0,0) and the bottom-right is (1,1). So if you place an element at (0.5, 0.5), its top-left corner is placed exactly in the center of the screen, no matter what resolution the application is running in. The same principle applies to sizes; if you set the width of an element to 0.5, it covers half the width of the screen. Note that because the aspect ratio of the screen is typically 1.3333 : 1 (width : height), an element with dimensions (0.25, 0.25) will not be square, but it will take up exactly 1/16th of the screen in area terms. If you want square-looking areas you will have to compensate using the typical aspect ratio e.g. use (0.1875, 0.25) instead.
 
 </dd> </dl>
 
@@ -335,34 +339,32 @@ OgreAssimpConverter [parameters] sourcefile [destination]
 
 # Exporters {#Exporters}
 
-Exporters are plugins to 3D modelling tools which write meshes and skeletal animation to file formats which OGRE can use for realtime rendering. The files the exporters write end in .mesh and .skeleton respectively.
+Exporters are plugins to 3D modelling tools which write meshes and skeletal animation to file formats which OGRE can use for realtime rendering. The files the exporters write end in `.mesh` and `.skeleton` respectively.
 
 Each exporter has to be written specifically for the modeller in question, although they all use a common set of facilities provided by  Ogre::MeshSerializer and Ogre::SkeletonSerializer. They also normally require you to own the modelling tool.
 
-All the exporters here can be built from the source code, or you can download precompiled versions from the OGRE web site.
+Full documentation for each exporter is provided along with the exporter itself, and there is a [selection of the currently supported modelling tools at OGRECave](https://github.com/OGRECave).
 
-## A Note About Modelling / Animation For OGRE
+<a name="autotoc_md32"></a> <!-- legacy anchor by tools of Ogre 14.2.5 and earlier -->
+## Empty material names {#empty-material-names}
 
-There are a few rules when creating an animated model for OGRE:
+All mesh files are required to have a material name set, otherwise most mesh tools will fail with an exception.
+Even if they don't, the exception will happen deep inside the render-loop which is way harder to debug (unless you set the material programmatically).
+
+To set a material name for the mesh, you have these options:
+
+ - Re-export the mesh, making sure that a material has been assigned.
+ - Edit the mesh.xml file to set a material name and reprocess the xml with @c OgreXMLConverter.
+
+## Skeletal animation
+
+There are a few rules when creating an animated model:
 
 -   You must have no more than 4 weighted bone assignments per vertex. If you have more, OGRE will eliminate the lowest weighted assignments and re-normalise the other weights. This limit is imposed by hardware blending limitations.
 -   All vertices must be assigned to at least one bone - assign static vertices to the root bone.
 -   At the very least each bone must have a keyframe at the beginning and end of the animation.
 
 If you’re creating non-animated meshes, then you do not need to be concerned with the above.
-
-Full documentation for each exporter is provided along with the exporter itself, and there is a [selection of the currently supported modelling tools at OGRECave](https://github.com/OGRECave).
-
-## A Note About empty Material Names
-
-All mesh files are required to have a material name set, otherwise most mesh tools will fail with an exception.
-Even if they don't, the exception will happen deep inside the render-loop which is way harder to debug  (unless you set the material programmatically).
-
-To set a material name for the mesh, you have these options:
-
- - Re-export the mesh from your preferred DCC (Digital Content Creator) exporter, making sure that a material has been assigned.
- - Edit the mesh.xml file to set a material name and reprocess the xml with @c OgreXMLConverter.
- - Edit the mesh file with [MeshMagick](https://github.com/OGRECave/meshmagick) to set a material name
 
 @page Shadows Shadows
 
@@ -393,7 +395,7 @@ mSceneMgr->setShadowTechnique(SHADOWTYPE_STENCIL_ADDITIVE);
 2.  Create one or more lights. Note that not all light types are necessarily supported by all shadow techniques, you should check the sections about each technique to check. Note that if certain lights should not cast shadows, you can turn that off by calling setCastShadows(false) on the light, the default is true.
 3.  Disable shadow casting on objects which should not cast shadows. Call setCastShadows(false) on objects you don’t want to cast shadows, the default for all objects is to cast shadows.
 4.  Configure shadow far distance. You can limit the distance at which shadows are considered for performance reasons, by calling Ogre::SceneManager::setShadowFarDistance.
-5.  Turn off the receipt of shadows on materials that should not receive them. You can turn off the receipt of shadows (note, not the casting of shadows - that is done per-object) by calling Material::setReceiveShadows or using the receive\_shadows material attribute. This is useful for materials which should be considered self-illuminated for example. Note that transparent materials are typically excluded from receiving and casting shadows, although see the [transparency\_casts\_shadows](#transparency_005fcasts_005fshadows) option for exceptions.
+5.  Turn off the receipt of shadows on materials that should not receive them. You can turn off the receipt of shadows (note, not the casting of shadows - that is done per-object) by calling Material::setReceiveShadows or using the receive\_shadows material attribute. This is useful for materials which should be considered self-illuminated for example. Note that transparent materials are typically excluded from receiving and casting shadows, although see the [transparency_casts_shadows](#transparency_005fcasts_005fshadows) option for exceptions.
 
 # Opting out of shadows {#Opting-out-of-shadows}
 
@@ -518,7 +520,7 @@ The main disadvantage to texture shadows is that, because they are simply a text
 <dl compact="compact">
 <dt>Choosing a projection basis</dt> <dd>
 
-The simplest projection is just to render the shadow casters from the lights perspective using a regular camera setup. This can look bad though, so there are many other projections which can help to improve the quality from the main camera’s perspective. OGRE supports pluggable projection bases via it’s ShadowCameraSetup class, and comes with several existing options
+The simplest projection is just to render the shadow casters from the lights perspective using a regular camera setup. This can look bad though, so there are many other projections which can help to improve the quality from the main camera’s perspective. OGRE supports pluggable projection bases via its ShadowCameraSetup class, and comes with several existing options
 - **Uniform**, which is the simplest,
 - **Uniform Focused**, which is still a normal camera projection, except that the camera is focused into the area that the main viewing camera is looking at
 - **Light Space Perspective Shadow Mapping** (LiSPSM), which both focuses and distorts the shadow frustum based on the main view camera and
@@ -748,7 +750,7 @@ Ogre is pretty good at classifying and splitting your passes to ensure that the 
 
 In practice this is very easy. Even though your vertex program could be doing a lot of complex, highly customised processing, it can still be classified into one of the 3 types listed above. All you need to do to tell Ogre what you’re doing is to use the pass attributes ambient, diffuse, specular and self\_illumination, just as if you were not using a vertex program. Sure, these attributes do nothing (as far as rendering is concerned) when you’re using vertex programs, but it’s the easiest way to indicate to Ogre which light components you’re using in your vertex program. Ogre will then classify and potentially split your programmable pass based on this information - it will leave the vertex program as-is (so that any split passes will respect any vertex modification that is being done). 
 
-Note that when classifying a diffuse/specular programmable pass, Ogre checks to see whether you have indicated the pass can be run once per light (iteration once\_per\_light). If so, the pass is left intact, including it’s vertex and fragment programs. However, if this attribute is not included in the pass, Ogre tries to split off the per-light part, and in doing so it will disable the fragment program, since in the absence of the ’iteration once\_per\_light’ attribute it can only assume that the fragment program is performing decal work and hence must not be used per light.
+Note that when classifying a diffuse/specular programmable pass, Ogre checks to see whether you have indicated the pass can be run once per light (iteration once\_per\_light). If so, the pass is left intact, including its vertex and fragment programs. However, if this attribute is not included in the pass, Ogre tries to split off the per-light part, and in doing so it will disable the fragment program, since in the absence of the ’iteration once\_per\_light’ attribute it can only assume that the fragment program is performing decal work and hence must not be used per light.
 
 So clearly, when you use additive light masking as a shadow technique, you need to make sure that programmable passes you use are properly set up so that they can be classified correctly. However, also note that the changes you have to make to ensure the classification is correct does not affect the way the material renders when you choose not to use additive lighting, so the principle that you should be able to use the same material definitions for all lighting scenarios still holds. Here is an example of a programmable material which will be classified correctly by the illumination pass classifier:
 
@@ -756,15 +758,13 @@ So clearly, when you use additive light masking as a shadow technique, you need 
 
 Note that if you’re using texture shadows you have the additional option of using @ref Integrated-Texture-Shadows rather than being forced to use this explicit sequence - allowing you to compress the number of passes into a much smaller number at the expense of defining an upper number of shadow casting lights. In this case the ’additive’ aspect of the shadow technique just affects the colour of the shadow texture and it’s up to you to combine the shadow textures in your receivers however you like.
 
-<a name="Static-Lighting"></a>
-
 ## Static Lighting {#Static-Lighting}
 
 Despite their power, additive lighting techniques have an additional limitation; they do not combine well with pre-calculated static lighting in the scene. This is because they are based on the principle that shadow is an absence of light, but since static lighting in the scene already includes areas of light and shadow, additive lighting cannot remove light to create new shadows. Therefore, if you use the additive lighting technique you must either use it exclusively as your lighting solution (and you can combine it with per-pixel lighting to create a very impressive dynamic lighting solution), or you must use @ref Integrated-Texture-Shadows to combine the static lighting according to your chosen approach.
 
 @page Animation Animation
 
-OGRE supports a pretty flexible animation system that allows you to script animation for several different purposes:
+OGRE supports a pretty flexible keyframe based animation system that allows you to script animation for several different purposes:
 
 <dl compact="compact">
 <dt>@ref SceneNode-Animation</dt> <dd>
@@ -780,11 +780,15 @@ Using OGRE’s extensible class structure to animate any value.
 
 @tableofcontents
 
+The diagram below shows the relationship between the different animation classes in OGRE:
+
+![](AnimationSystem.svg)
+
 # Animation State {#Animation-State}
 
-When an entity containing animation of any type is created, it is given an ’animation state’ object per animation to allow you to specify the animation state of that single entity (you can animate multiple entities using the same animation definitions, OGRE sorts the reuse out internally).
+When an entity with any kind of animation is created, an 'animation state' object is assigned to each animation. This allows you to control both the weight and the time position (where applicable) for applying the animation to that specific entity. You can reuse the same animation definitions across multiple entities, and OGRE handles the internal management of this reuse.
 
-You can retrieve a pointer to the AnimationState object by calling Ogre::Entity::getAnimationState. You can then call methods on this returned object to update the animation, probably in the frameStarted event. Each AnimationState needs to be enabled using the setEnabled method before the animation it refers to will take effect, and you can set both the weight and the time position (where appropriate) to affect the application of the animation using correlating methods. AnimationState also has a very simple method ’addTime’ which allows you to alter the animation position incrementally, and it will automatically loop for you. addTime can take positive or negative values (so you can reverse the animation if you want).
+You can retrieve a pointer to the Ogre::AnimationState object by calling Ogre::Entity::getAnimationState. You can then call methods on this returned object to update the animation, probably in the @c frameStarted event. Each AnimationState needs to be enabled using the @c setEnabled method before the animation it refers to will take effect. AnimationState also has a very simple method @c addTime which allows you to alter the animation position incrementally, and it will automatically loop for you. addTime can take positive or negative values (so you can reverse the animation if you want).
 
 
 # Skeletal Animation {#Skeletal-Animation}
@@ -802,7 +806,7 @@ There are many grades of skeletal animation, and not all engines (or modellers f
 -   A vertex can be assigned to multiple bones and assigned weightings for smoother skinning
 -   Multiple animations can be applied to a mesh at the same time, again with a blend weighting
 
-Skeletons and the animations which go with them are held in .skeleton files, which are produced by the OGRE exporters. These files are loaded automatically when you create an Entity based on a Mesh which is linked to the skeleton in question. You then use @ref Animation-State to set the use of animation on the entity in question.
+Skeletons and the animations which go with them are held in `.skeleton` files, which are produced by the OGRE exporters. These files are loaded automatically when you create an Entity based on a Mesh which is linked to the skeleton in question. You then use @ref Animation-State to set the use of animation on the entity in question.
 
 Skeletal animation can be performed in software, or implemented in shaders (hardware skinning). Clearly the latter is preferable, since it takes some of the work away from the CPU and gives it to the graphics card, and also means that the vertex data does not need to be re-uploaded every frame. This is especially important for large, detailed models. You should try to use hardware skinning wherever possible; this basically means assigning a material which has a vertex program powered technique. See @ref Skeletal-Animation-in-Vertex-Programs for more details. Skeletal animation can be combined with vertex animation, See @ref Combining-Skeletal-and-Vertex-Animation.
 
@@ -810,7 +814,11 @@ Skeletal animation can be performed in software, or implemented in shaders (hard
 
 SceneNode animation is created from the SceneManager in order to animate the movement of SceneNodes, to make any attached objects move around automatically. You can see this performing a camera swoop in the CameraTrack Sample, or controlling how the fish move around in the pond in the Fresnel Sample.
 
-At it’s heart, scene node animation is mostly the same code which animates the underlying skeleton in skeletal animation. After creating the main Animation using Ogre::SceneManager::createAnimation you can create a NodeAnimationTrack per SceneNode that you want to animate, and create keyframes which control its position, orientation and scale which can be interpolated linearly or via splines. You use @ref Animation-State in the same way as you do for skeletal/vertex animation, except you obtain the state from SceneManager instead of from an individual Entity. Animations are applied automatically every frame, or the state can be applied manually in advance using the \_applySceneAnimations() method on SceneManager. See the API reference for full details of the interface for configuring scene animations.
+At its heart, scene node animation is mostly the same code which animates the underlying skeleton in skeletal animation. After creating the main Animation using Ogre::SceneManager::createAnimation you can create a NodeAnimationTrack per SceneNode that you want to animate, and create keyframes which control its position, orientation and scale which can be interpolated linearly or via splines. You use @ref Animation-State in the same way as you do for skeletal/vertex animation, except you obtain the state from SceneManager instead of from an individual Entity.
+
+@note While AnimationStates are automatically created when an entity is created, you need to manually create them for scene node animations.
+
+AnimationStates are applied automatically every frame, or the state can be applied manually in advance using the Ogre::SceneManager::_applySceneAnimations() method. See the API reference for full details of the interface for configuring scene animations.
 
 # Vertex Animation {#Vertex-Animation}
 
@@ -888,20 +896,18 @@ Skeletal animation and vertex animation (of either subtype) can both be enabled 
 
 Combining the two is, from a user perspective, as simple as just enabling both animations at the same time. When it comes to using this feature efficiently though, there are a few points to bear in mind:
 
--   [Combined Hardware Skinning](#Combined-Hardware-Skinning)
--   [Submesh Splits](#Submesh-Splits)
+### Combined Hardware Skinning {#Combined-Hardware-Skinning}
 
-<a name="Combined-Hardware-Skinning"></a><a name="Combined-Hardware-Skinning-1"></a>
-
-## Combined Hardware Skinning
-
-For complex characters it is a very good idea to implement hardware skinning by including a technique in your materials which has a vertex program which can perform the kinds of animation you are using in hardware. See [Skeletal Animation in Vertex Programs](@ref Skeletal-Animation-in-Vertex-Programs), [Morph Animation in Vertex Programs](@ref Morph-Animation-in-Vertex-Programs), [Pose Animation in Vertex Programs](@ref Pose-Animation-in-Vertex-Programs). 
+For complex characters it is a very good idea to implement hardware skinning by including a technique in your materials which has a vertex program which can perform the kinds of animation you are using in hardware.
 
 When combining animation types, your vertex programs must support both types of animation that the combined mesh needs, otherwise hardware skinning will be disabled. You should implement the animation in the same way that OGRE does, i.e. perform vertex animation first, then apply skeletal animation to the result of that. Remember that the implementation of morph animation passes 2 absolute snapshot buffers of the from & to keyframes, along with a single parametric, which you have to linearly interpolate, whilst pose animation passes the base vertex data plus ’n’ pose offset buffers, and ’n’ parametric weight values. 
 
-<a name="Submesh-Splits"></a><a name="Submesh-Splits-1"></a>
+@see
+- @ref Skeletal-Animation-in-Vertex-Programs
+- @ref Morph-Animation-in-Vertex-Programs
+- @ref Pose-Animation-in-Vertex-Programs
 
-## Submesh Splits
+### Submesh Splits {#Submesh-Splits}
 
 If you only need to combine vertex and skeletal animation for a small part of your mesh, e.g. the face, you could split your mesh into 2 parts, one which needs the combination and one which does not, to reduce the calculation overhead. Note that it will also reduce vertex buffer usage since vertex keyframe / pose buffers will also be smaller. Note that if you use hardware skinning you should then implement 2 separate vertex programs, one which does only skeletal animation, and the other which does skeletal and vertex animation.
 
@@ -913,15 +919,16 @@ Apart from the specific animation types which may well comprise the most common 
 
 ## AnimableObject
 
-Ogre::AnimableObject is an abstract interface that any class can extend in order to provide access to a number of [AnimableValue](#AnimableValue)s. It holds a ’dictionary’ of the available animable properties which can be enumerated via the getAnimableValueNames method, and when its createAnimableValue method is called, it returns a reference to a value object which forms a bridge between the generic animation interfaces, and the underlying specific object property.
+Ogre::AnimableObject is an abstract interface that any class can implement in order to provide advertise that it has animable properties.
+The interface provides methods to list the animable properties, and to create Ogre::AnimableValue objects which can be used to animate those properties.
 
-One example of this is the Ogre::Light class. It extends AnimableObject and provides AnimableValues for properties such as "diffuseColour" and "attenuation". Animation tracks can be created for these values and thus properties of the light can be scripted to change. Other objects, including your custom objects, can extend this interface in the same way to provide animation support to their properties.
+One example of this is the Ogre::Light class. It extends AnimableObject and provides AnimableValues for properties such as @c "diffuseColour" and @c "attenuation". Animation tracks can be created for these values and thus properties of the light can be scripted to change. Other objects, including your custom objects, can extend this interface in the same way to provide animation support to their properties.
 
 <a name="AnimableValue"></a><a name="AnimableValue-1"></a>
 
 ## AnimableValue
 
-When implementing custom animable properties, you have to also implement a number of methods on the AnimableValue interface - basically anything which has been marked as unimplemented. These are not pure virtual methods simply because you only have to implement the methods required for the type of value you’re animating. Again, see the examples in Light to see how this is done.
+When implementing custom animable properties, you have to also implement a number of methods on the Ogre::AnimableValue interface - basically anything which has been marked as unimplemented. These are not pure virtual methods simply because you only have to implement the methods required for the type of value you’re animating. Again, see the examples in Light to see how this is done.
 
 
 @page Instancing Instancing

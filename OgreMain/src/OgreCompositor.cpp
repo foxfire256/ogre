@@ -27,9 +27,6 @@ THE SOFTWARE.
 */
 #include "OgreStableHeaders.h"
 #include "OgreCompositor.h"
-#include "OgreCompositionTechnique.h"
-#include "OgreRenderTexture.h"
-#include "OgreRenderTarget.h"
 #include "OgreHardwarePixelBuffer.h"
 #include "OgreCompositorInstance.h"
 
@@ -48,7 +45,7 @@ Compositor::~Compositor()
     removeAllTechniques();
     // have to call this here reather than in Resource destructor
     // since calling virtual methods in base destructors causes crash
-    unload(); 
+    unload();
 }
 //-----------------------------------------------------------------------
 CompositionTechnique *Compositor::createTechnique()
@@ -154,65 +151,62 @@ CompositionTechnique* Compositor::getSupportedTechnique(const String& schemeName
     return 0;
 
 }
+
+TexturePtr createTexture(const String& name, const CompositionTechnique::TextureDefinition& def, PixelFormat pf,
+                         const String& fsaaHint)
+{
+    bool hwGamma = def.hwGammaWrite && !PixelUtil::isFloatingPoint(pf);
+    return TextureManager::getSingleton().createManual(name, RGN_INTERNAL, def.type, def.width, def.height, def.depth,
+                                                       0, pf, TU_RENDERTARGET, 0, hwGamma, def.fsaa, fsaaHint);
+}
+
 //-----------------------------------------------------------------------
 void Compositor::createGlobalTextures()
 {
-    static size_t dummyCounter = 0;
     if (mSupportedTechniques.empty())
         return;
 
     //To make sure that we are consistent, it is demanded that all composition
     //techniques define the same set of global textures.
-
     typedef std::set<String> StringSet;
     StringSet globalTextureNames;
 
     //Initialize global textures from first supported technique
     CompositionTechnique* firstTechnique = mSupportedTechniques[0];
 
-    const CompositionTechnique::TextureDefinitions& tdefs = firstTechnique->getTextureDefinitions();
-    CompositionTechnique::TextureDefinitions::const_iterator texDefIt = tdefs.begin();
-    for (; texDefIt != tdefs.end(); ++texDefIt)
+    for (auto *def : firstTechnique->getTextureDefinitions())
     {
-        CompositionTechnique::TextureDefinition* def = *texDefIt;
-        if (def->scope == CompositionTechnique::TS_GLOBAL) 
+        if (def->scope == CompositionTechnique::TS_GLOBAL)
         {
             //Check that this is a legit global texture
             OgreAssert(def->refCompName.empty(), "Global compositor texture definition can not be a reference");
             OgreAssert(def->width && def->height, "Global compositor texture definition must have absolute size");
-            if (def->pooled) 
+            if (def->pooled)
             {
-                LogManager::getSingleton().logWarning("Pooling global compositor textures has no effect");
+                LogManager::getSingleton().logWarning(mName+" - pooling global compositor textures has no effect");
             }
             globalTextureNames.insert(def->name);
 
             //TODO GSOC : Heavy copy-pasting from CompositorInstance. How to we solve it?
 
+            // unique, even without dummyCounter, as these are global
+            String baseName = StringUtil::format("%s.%s", def->name.c_str(), mName.c_str());
+
             /// Make the tetxure
             RenderTarget* rendTarget;
             if (def->formatList.size() > 1)
             {
-                String MRTbaseName = "mrt/c" + StringConverter::toString(dummyCounter++) + 
-                    "/" + mName + "/" + def->name;
-                MultiRenderTarget* mrt = 
-                    Root::getSingleton().getRenderSystem()->createMultiRenderTarget(MRTbaseName);
+                MultiRenderTarget* mrt = Root::getSingleton().getRenderSystem()->createMultiRenderTarget(baseName);
                 mGlobalMRTs[def->name] = mrt;
 
                 // create and bind individual surfaces
-                size_t atch = 0;
-                for (PixelFormatList::iterator p = def->formatList.begin(); 
-                    p != def->formatList.end(); ++p, ++atch)
+                uint8 atch = 0;
+                for (auto p : def->formatList)
                 {
 
-                    String texname = MRTbaseName + "/" + StringConverter::toString(atch);
-                    TexturePtr tex;
-                    
-                    tex = TextureManager::getSingleton().createManual(
-                            texname, 
-                            ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME, TEX_TYPE_2D, 
-                            (uint)def->width, (uint)def->height, 0, *p, TU_RENDERTARGET, 0, 
-                            def->hwGammaWrite && !PixelUtil::isFloatingPoint(*p), def->fsaa); 
-                    
+                    String texname = StringUtil::format("mrt%d.%s", atch, baseName.c_str());
+                    TexturePtr tex = createTexture(texname, *def, p);
+
                     RenderTexture* rt = tex->getBuffer()->getRenderTarget();
                     rt->setAutoUpdated(false);
                     mrt->bindSurface(atch, rt);
@@ -220,51 +214,43 @@ void Compositor::createGlobalTextures()
                     // Also add to local textures so we can look up
                     String mrtLocalName = CompositorInstance::getMRTTexLocalName(def->name, atch);
                     mGlobalTextures[mrtLocalName] = tex;
-                    
+                    atch++;
                 }
 
                 rendTarget = mrt;
             }
             else
             {
-                String texName =  "c" + StringConverter::toString(dummyCounter++) + 
-                    "/" + mName + "/" + def->name;
-                
+                String texName = baseName;
+
                 // space in the name mixup the cegui in the compositor demo
                 // this is an auto generated name - so no spaces can't hart us.
-                std::replace( texName.begin(), texName.end(), ' ', '_' ); 
+                std::replace( texName.begin(), texName.end(), ' ', '_' );
 
-                TexturePtr tex;
-                tex = TextureManager::getSingleton().createManual(
-                    texName, 
-                    ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME, TEX_TYPE_2D, 
-                    (uint)def->width, (uint)def->height, 0, def->formatList[0], TU_RENDERTARGET, 0,
-                    def->hwGammaWrite && !PixelUtil::isFloatingPoint(def->formatList[0]), def->fsaa); 
-                
-
+                TexturePtr tex = createTexture(texName, *def, def->formatList[0]);
                 rendTarget = tex->getBuffer()->getRenderTarget();
                 mGlobalTextures[def->name] = tex;
             }
 
+            rendTarget->setAutoUpdated( false );
+
             //Set DepthBuffer pool for sharing
-            rendTarget->setDepthBufferPool( def->depthBufferId );
+            if(rendTarget->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH)
+                rendTarget->setDepthBufferPool( def->depthBufferId );
         }
     }
 
     //Validate that all other supported techniques expose the same set of global textures.
-    for (size_t i=1; i<mSupportedTechniques.size(); i++)
+    for (size_t i = 1; i < mSupportedTechniques.size(); i++)
     {
-        CompositionTechnique* technique = mSupportedTechniques[i];
         bool isConsistent = true;
         size_t numGlobals = 0;
-        const CompositionTechnique::TextureDefinitions& tdefs2 = technique->getTextureDefinitions();
-        texDefIt = tdefs2.begin();
-        for (; texDefIt != tdefs2.end(); ++texDefIt)
+        CompositionTechnique* technique = mSupportedTechniques[i];
+        for (auto *texDef : technique->getTextureDefinitions())
         {
-            CompositionTechnique::TextureDefinition* texDef = *texDefIt;
-            if (texDef->scope == CompositionTechnique::TS_GLOBAL) 
+            if (texDef->scope == CompositionTechnique::TS_GLOBAL)
             {
-                if (globalTextureNames.find(texDef->name) == globalTextureNames.end()) 
+                if (globalTextureNames.find(texDef->name) == globalTextureNames.end())
                 {
                     isConsistent = false;
                     break;
@@ -277,25 +263,21 @@ void Compositor::createGlobalTextures()
 
         OgreAssert(isConsistent, "Different composition techniques define different global textures");
     }
-    
+
 }
 //-----------------------------------------------------------------------
 void Compositor::freeGlobalTextures()
 {
-    GlobalTextureMap::iterator i = mGlobalTextures.begin();
-    while (i != mGlobalTextures.end())
+    for (const auto& t : mGlobalTextures)
     {
-        TextureManager::getSingleton().remove(i->second);
-        ++i;
+        TextureManager::getSingleton().remove(t.second);
     }
     mGlobalTextures.clear();
 
-    GlobalMRTMap::iterator mrti = mGlobalMRTs.begin();
-    while (mrti != mGlobalMRTs.end())
+    for (const auto& m : mGlobalMRTs)
     {
         // remove MRT
-        Root::getSingleton().getRenderSystem()->destroyRenderTarget(mrti->second->getName());
-        ++mrti;
+        Root::getSingleton().getRenderSystem()->destroyRenderTarget(m.second->getName());
     }
     mGlobalMRTs.clear();
 
@@ -305,7 +287,7 @@ const String& Compositor::getTextureInstanceName(const String& name, size_t mrtI
 {
     return getTextureInstance(name, mrtIndex)->getName();
 }
-//-----------------------------------------------------------------------       
+//-----------------------------------------------------------------------
 const TexturePtr& Compositor::getTextureInstance(const String& name, size_t mrtIndex)
 {
     //Try simple texture
@@ -322,9 +304,8 @@ const TexturePtr& Compositor::getTextureInstance(const String& name, size_t mrtI
         return i->second;
     }
 
-    OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Non-existent global texture name", 
-        "Compositor::getTextureInstance");
-        
+    OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Non-existent global texture name");
+
 }
 //---------------------------------------------------------------------
 RenderTarget* Compositor::getRenderTarget(const String& name, int slice)
@@ -332,15 +313,14 @@ RenderTarget* Compositor::getRenderTarget(const String& name, int slice)
     // try simple texture
     GlobalTextureMap::iterator i = mGlobalTextures.find(name);
     if(i != mGlobalTextures.end())
-        return i->second->getBuffer(slice)->getRenderTarget();
+        return i->second->getRenderTarget(slice);
 
     // try MRTs
     GlobalMRTMap::iterator mi = mGlobalMRTs.find(name);
     if (mi != mGlobalMRTs.end())
         return mi->second;
-    else
-        OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Non-existent global texture name", 
-            "Compositor::getRenderTarget");
+
+    OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Non-existent global texture name");
 }
 //---------------------------------------------------------------------
 }

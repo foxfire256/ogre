@@ -52,8 +52,6 @@ THE SOFTWARE.
 #include "OgreVulkanWindow.h"
 #include "OgrePixelFormat.h"
 
-#define USE_VALIDATION_LAYERS 0
-
 namespace Ogre
 {
     static const uint32 VERTEX_ATTRIBUTE_INDEX[VES_COUNT] =
@@ -555,7 +553,7 @@ namespace Ogre
         //rsc->setCapability( RSC_STORE_AND_MULTISAMPLE_RESOLVE );
         //rsc->setCapability( RSC_TEXTURE_GATHER );
 
-        rsc->setCapability( RSC_COMPUTE_PROGRAM );
+        rsc->setCapability( RSC_VERTEX_PROGRAM );
         //rsc->setCapability( RSC_UAV );
         //rsc->setCapability( RSC_TYPED_UAV_LOADS );
         //rsc->setCapability( RSC_EXPLICIT_FSAA_RESOLVE );
@@ -584,6 +582,7 @@ namespace Ogre
         rsc->setCapability( RSC_HW_GAMMA );
         rsc->setCapability( RSC_VERTEX_BUFFER_INSTANCE_DATA );
         rsc->setCapability(RSC_VERTEX_FORMAT_INT_10_10_10_2);
+        rsc->setCapability(RSC_VERTEX_FORMAT_16X3);
         rsc->setMaxPointSize( deviceLimits.pointSizeRange[1] );
 
         //rsc->setMaximumResolutions( 16384, 4096, 16384 );
@@ -761,6 +760,21 @@ namespace Ogre
                     }
                     else if( extensionName == VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME )
                         deviceExtensions.push_back( VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME );
+                    else if( extensionName == VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME )
+                    {
+                        deviceExtensions.push_back( VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME );
+                        mRealCapabilities->setCapability( RSC_VP_RT_INDEX_ANY_SHADER );
+                    }
+#ifdef VK_EXT_mesh_shader
+                    else if( extensionName == VK_EXT_MESH_SHADER_EXTENSION_NAME)
+                    {
+                        deviceExtensions.push_back( VK_EXT_MESH_SHADER_EXTENSION_NAME );
+                        deviceExtensions.push_back( VK_KHR_SPIRV_1_4_EXTENSION_NAME );
+                        mRealCapabilities->setCapability(RSC_MESH_PROGRAM);
+
+                        mDescriptorSetBindings[0].stageFlags |= VK_SHADER_STAGE_MESH_BIT_NV;
+                    }
+#endif
                 }
             }
 
@@ -1018,7 +1032,7 @@ namespace Ogre
         if(!vertexBuffers.empty())
             vkCmdBindVertexBuffers(cmdBuffer, 0, vertexBuffers.size(), vertexBuffers.data(), offsets);
 
-        if(op.indexData)
+        if(op.useIndexes)
         {
             auto itype = VkIndexType(op.indexData->indexBuffer->getType());
             auto b = op.indexData->indexBuffer->_getImpl<VulkanHardwareBuffer>()->getVkBuffer();
@@ -1033,7 +1047,14 @@ namespace Ogre
         vkCmdBindPipeline( cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline );
 
         // Render to screen!
-        if( op.useIndexes )
+        if(mProgramBound[GPT_MESH_PROGRAM])
+        {
+#ifdef VK_EXT_mesh_shader
+            OgreAssert(op.indexData, "indexData required for mesh shader");
+            vkCmdDrawMeshTasksEXT(cmdBuffer, op.indexData->indexCount, 1, 1);
+#endif
+        }
+        else if( op.useIndexes )
         {
             do
             {
@@ -1075,8 +1096,10 @@ namespace Ogre
     void VulkanRenderSystem::bindGpuProgram(GpuProgram* prg)
     {
         auto shader = static_cast<VulkanProgram*>(prg);
-        shaderStages[prg->getType()] = shader->getPipelineShaderStageCi();
+        shaderStages[prg->getType() % GPT_PIPELINE_COUNT] = shader->getPipelineShaderStageCi();
         mBoundGpuPrograms[prg->getType()] = prg->_getHash();
+
+        RenderSystem::bindGpuProgram(prg);
     }
     void VulkanRenderSystem::bindGpuProgramParameters( GpuProgramType gptype,
                                                        const GpuProgramParametersPtr& params,
@@ -1084,12 +1107,14 @@ namespace Ogre
     {
         mActiveParameters[gptype] = params;
 
+        int dstUBO = gptype % GPT_PIPELINE_COUNT;
+
         auto sizeBytes = params->getConstantList().size();
-        if(sizeBytes && gptype <= GPT_FRAGMENT_PROGRAM)
+        if(sizeBytes && dstUBO < 2)
         {
             auto step =
                 alignToNextMultiple(sizeBytes, mDevice->mDeviceProperties.limits.minUniformBufferOffsetAlignment);
-            mUBOInfo[gptype].range = sizeBytes;
+            mUBOInfo[dstUBO].range = sizeBytes;
 
             if (std::accumulate(mAutoParamsBufferUsage.begin(), mAutoParamsBufferUsage.end(), 0) + step >=
                 mAutoParamsBuffer->getSizeInBytes())
@@ -1101,7 +1126,7 @@ namespace Ogre
             if((mAutoParamsBufferPos + sizeBytes) >= mAutoParamsBuffer->getSizeInBytes())
                 mAutoParamsBufferPos = 0;
 
-            mUBODynOffsets[gptype] = mAutoParamsBufferPos;
+            mUBODynOffsets[dstUBO] = mAutoParamsBufferPos;
 
             mAutoParamsBuffer->writeData(mAutoParamsBufferPos, sizeBytes, params->getConstantList().data());
             mAutoParamsBufferPos += step;

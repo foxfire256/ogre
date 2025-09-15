@@ -13,7 +13,7 @@ same license as the rest of the engine.
 */
 
 /**
-    @file 
+    @file
         Shadows.cpp
     @brief
         Shows a few ways to use Ogre's shadowing techniques
@@ -31,7 +31,6 @@ using namespace OgreBites;
 
 // New depth shadowmapping
 String CUSTOM_ROCKWALL_MATERIAL("Ogre/DepthShadowmap/Receiver/RockWall");
-String CUSTOM_CASTER_MATERIAL("PSSM/shadow_caster");
 String CUSTOM_ATHENE_MATERIAL("Ogre/DepthShadowmap/Receiver/Athene");
 
 String BASIC_ROCKWALL_MATERIAL("Examples/Rockwall");
@@ -49,7 +48,7 @@ protected:
     Real mSizeRange;
     float intensity;
 public:
-    LightWibbler(Light* light, Billboard* billboard, const ColourValue& minColour, 
+    LightWibbler(Light* light, Billboard* billboard, const ColourValue& minColour,
         const ColourValue& maxColour, Real minSize, Real maxSize)
     {
         mLight = light;
@@ -58,7 +57,7 @@ public:
         mColourRange = maxColour - minColour;
         mMinSize = minSize;
         mSizeRange = maxSize - minSize;
-        
+
     }
 
     float  getValue (void) const override
@@ -114,7 +113,7 @@ protected:
         MAT_DEPTH_FLOAT,
         MAT_DEPTH_FLOAT_PCF
     };
-    
+
     ShadowTechnique mCurrentShadowTechnique;
     ShadowProjection mCurrentProjection;
     ShadowMaterial mCurrentMaterial;
@@ -141,7 +140,7 @@ public:
     }
 
 protected:
-    
+
     // Just override the mandatory create scene method
     void setupContent(void) override
     {
@@ -191,14 +190,12 @@ protected:
         mLightNode->attachObject(bbs);
 
         // create controller, after this is will get updated on its own
-        ControllerFunctionRealPtr func = WaveformControllerFunction::create(Ogre::WFT_SINE, 0.75, 0.5);
+        auto func = WaveformControllerFunction::create(WFT_SINE, 0.75, 0.5);
+        auto dst =
+            std::make_shared<LightWibbler>(mLight, bb, mMinLightColour, mMaxLightColour, mMinFlareSize, mMaxFlareSize);
         ControllerManager& contMgr = ControllerManager::getSingleton();
-        ControllerValueRealPtr val = ControllerValueRealPtr(
-            new LightWibbler(mLight, bb, mMinLightColour, mMaxLightColour, 
-            mMinFlareSize, mMaxFlareSize));
-        mController = contMgr.createController(
-            contMgr.getFrameTimeSource(), val, func);
-        
+        mController = contMgr.createController(contMgr.getFrameTimeSource(), dst, func);
+
         //mLight->setPosition(Vector3(300,250,-300));
         mLightNode->setPosition(Vector3(300,1750,-700));
 
@@ -300,7 +297,7 @@ protected:
         // incase infinite far distance is not supported
         mCamera->setFarClipDistance(100000);
     }
-    
+
     void cleanupContent() override
     {
         ControllerManager::getSingleton().destroyController(mController);
@@ -310,7 +307,7 @@ protected:
         pColumns.clear();
     }
 
-    /// Change basic shadow technique 
+    /// Change basic shadow technique
     void changeShadowTechnique(ShadowTechnique newTech)
     {
         mSceneMgr->setShadowTechnique(newTech);
@@ -349,7 +346,7 @@ protected:
     SelectMenu* mLightingMenu;
     SelectMenu* mProjectionMenu;
     SelectMenu* mMaterialMenu;
-    
+
     Slider* mFixedBiasSlider;
     Slider* mSlopedBiasSlider;
 
@@ -372,7 +369,7 @@ protected:
             mLightingMenu->selectItem("Additive", false);
         else
             mLightingMenu->selectItem("Modulative", false);
-        
+
         //These values are synchronized with ShadowProjection enum
         mProjectionMenu = mTrayMgr->createLongSelectMenu(
             TL_TOPLEFT, "ProjectionSelectMenu", "Projection", 300, 200, 5);
@@ -380,13 +377,13 @@ protected:
         mProjectionMenu->addItem("Uniform Focused");
         mProjectionMenu->addItem("LiSPSM");
         mProjectionMenu->addItem("Plane Optimal");
-        
+
         mMaterialMenu = mTrayMgr->createLongSelectMenu(
             TL_TOPLEFT, "MaterialSelectMenu", "Material", 300, 200, 5);
         mMaterialMenu->addItem("Standard");
         mMaterialMenu->addItem("Depth Shadowmap");
         mMaterialMenu->addItem("Depth Shadowmap (PCF)");
-        
+
         mFixedBiasSlider = mTrayMgr->createThickSlider(TL_NONE, "FixedBiasSlider", "Fixed Bias", 256, 80, 0, 5, 100);
         mFixedBiasSlider->setValue(0.5, false);
         mFixedBiasSlider->hide();
@@ -410,7 +407,7 @@ protected:
             mProjectionMenu->show();
             mTrayMgr->moveWidgetToTray(mProjectionMenu, TL_TOPLEFT);
         }
-        else 
+        else
         {
             mProjectionMenu->hide();
             mTrayMgr->removeWidgetFromTray(mProjectionMenu);
@@ -454,7 +451,7 @@ protected:
             newTech = static_cast<ShadowTechnique>(
                 (newTech & ~SHADOWDETAILTYPE_STENCIL) | SHADOWDETAILTYPE_TEXTURE);
         }
-        
+
         if (isAdditive)
         {
             newTech = static_cast<ShadowTechnique>(
@@ -473,7 +470,7 @@ protected:
     void handleProjectionChanged()
     {
         ShadowProjection proj = (ShadowProjection)mProjectionMenu->getSelectionIndex();
-        
+
         if (proj != mCurrentProjection)
         {
             switch(proj)
@@ -501,7 +498,7 @@ protected:
 
     void updateDepthShadowParams()
     {
-        auto mat = MaterialManager::getSingleton().getByName(CUSTOM_CASTER_MATERIAL);
+        auto mat = MaterialManager::getSingleton().getByName("Ogre/TextureShadowCaster");
         auto pass = mat->getTechniques().back()->getPass(0);
         pass->setDepthBias(-mFixedBiasSlider->getValue(), -mSlopedBiasSlider->getValue());
     }
@@ -516,18 +513,16 @@ protected:
         // Sort out base materials
         pPlaneEnt->setMaterialName(BASIC_ROCKWALL_MATERIAL);
         mAthene->setMaterialName(BASIC_ATHENE_MATERIAL);
-        for (std::vector<Entity*>::iterator i = pColumns.begin();
-            i != pColumns.end(); ++i)
+        for (auto *c : pColumns)
         {
-            (*i)->setMaterialName(BASIC_ROCKWALL_MATERIAL);
+            c->setMaterialName(BASIC_ROCKWALL_MATERIAL);
         }
     }
-    
+
     void handleMaterialChanged()
     {
-        bool showSliders = false;   
+        bool showSliders = false;
         ShadowMaterial mat = (ShadowMaterial)mMaterialMenu->getSelectionIndex();
-        MaterialPtr themat;
         if (mat != mCurrentMaterial)
         {
             switch(mat)
@@ -537,8 +532,8 @@ protected:
                 mSceneMgr->setShadowTechnique(SHADOWTYPE_TEXTURE_ADDITIVE);
 
                 mSceneMgr->setShadowTextureCasterMaterial(MaterialPtr());
-                mSceneMgr->setShadowTextureSelfShadow(false);   
-                
+                mSceneMgr->setShadowTextureSelfShadow(false);
+
                 resetMaterials();
 
                 break;
@@ -547,16 +542,13 @@ protected:
                 mSceneMgr->setShadowTexturePixelFormat(PF_DEPTH16);
                 mSceneMgr->setShadowTechnique(SHADOWTYPE_TEXTURE_ADDITIVE_INTEGRATED);
 
-                themat = MaterialManager::getSingleton().getByName(CUSTOM_CASTER_MATERIAL);
-                mSceneMgr->setShadowTextureCasterMaterial(themat);
-                mSceneMgr->setShadowTextureSelfShadow(true);    
+                mSceneMgr->setShadowTextureSelfShadow(true);
                 // Sort out base materials
                 pPlaneEnt->setMaterialName(CUSTOM_ROCKWALL_MATERIAL);
                 mAthene->setMaterialName(CUSTOM_ATHENE_MATERIAL);
-                for (std::vector<Entity*>::iterator i = pColumns.begin();
-                    i != pColumns.end(); ++i)
+                for (auto *c : pColumns)
                 {
-                    (*i)->setMaterialName(CUSTOM_ROCKWALL_MATERIAL);
+                    c->setMaterialName(CUSTOM_ROCKWALL_MATERIAL);
                 }
 
                 showSliders = true;
@@ -569,16 +561,13 @@ protected:
                 mSceneMgr->setShadowTexturePixelFormat(PF_DEPTH16);
                 mSceneMgr->setShadowTechnique(SHADOWTYPE_TEXTURE_ADDITIVE_INTEGRATED);
 
-                themat = MaterialManager::getSingleton().getByName(CUSTOM_CASTER_MATERIAL);
-                mSceneMgr->setShadowTextureCasterMaterial(themat);
-                mSceneMgr->setShadowTextureSelfShadow(true);    
+                mSceneMgr->setShadowTextureSelfShadow(true);
                 // Sort out base materials
                 pPlaneEnt->setMaterialName(CUSTOM_ROCKWALL_MATERIAL + "/PCF");
                 mAthene->setMaterialName(CUSTOM_ATHENE_MATERIAL + "/PCF");
-                for (std::vector<Entity*>::iterator i = pColumns.begin();
-                    i != pColumns.end(); ++i)
+                for (auto *c : pColumns)
                 {
-                    (*i)->setMaterialName(CUSTOM_ROCKWALL_MATERIAL + "/PCF");
+                    c->setMaterialName(CUSTOM_ROCKWALL_MATERIAL + "/PCF");
                 }
 
                 showSliders = true;

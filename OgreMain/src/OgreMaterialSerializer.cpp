@@ -137,13 +137,13 @@ namespace Ogre
 
         // Fire pre-write event.
         fireMaterialEvent(MSE_PRE_WRITE, skipWriting, pMat.get());
-        if (skipWriting)        
-            return;     
+        if (skipWriting)
+            return;
 
         // Material name
         writeAttribute(0, "material");
         writeValue(quoteWord(outMaterialName));
-        
+
         beginSection(0);
         {
             // Fire write begin event.
@@ -210,9 +210,9 @@ namespace Ogre
 
         // Fire pre-write event.
         fireTechniqueEvent(MSE_PRE_WRITE, skipWriting, pTech);
-        if (skipWriting)        
-            return; 
-        
+        if (skipWriting)
+            return;
+
         // Technique header
         writeAttribute(1, "technique");
         // only output technique name if it exists.
@@ -299,9 +299,9 @@ namespace Ogre
 
         // Fire pre-write event.
         firePassEvent(MSE_PRE_WRITE, skipWriting, pPass);
-        if (skipWriting)        
+        if (skipWriting)
             return;
-        
+
         writeAttribute(2, "pass");
         // only output pass name if its not the default name
         if (pPass->getName() != StringConverter::toString(pPass->getIndex()))
@@ -387,7 +387,7 @@ namespace Ogre
                 writeValue(StringConverter::toString(pPass->getLightMask()));
             }
 
-            if (pPass->getLightingEnabled())
+            if (pPass->getLightingEnabled() || pPass->getVertexColourTracking() != TVC_NONE)
             {
                 // Ambient
                 if (mDefaults ||
@@ -762,7 +762,7 @@ namespace Ogre
             {
                 writeTesselationDomainProgramRef(pPass);
             }
-            
+
             if (pPass->hasGeometryProgram())
             {
                 writeGeometryProgramRef(pPass);
@@ -778,10 +778,10 @@ namespace Ogre
             firePassEvent(MSE_WRITE_END, skipWriting, pPass);
         }
         endSection(2);
-        
+
         // Fire post section write event.
         firePassEvent(MSE_POST_WRITE, skipWriting, pPass);
-        
+
         LogManager::getSingleton().logMessage("MaterialSerializer : done.", LML_NORMAL);
     }
     //-----------------------------------------------------------------------
@@ -825,9 +825,9 @@ namespace Ogre
 
         // Fire pre-write event.
         fireTextureUnitStateEvent(MSE_PRE_WRITE, skipWriting, pTex);
-        if (skipWriting)        
+        if (skipWriting)
             return;
-    
+
         LogManager::getSingleton().logMessage("MaterialSerializer : parsing texture layer.", LML_NORMAL);
         mBuffer += "\n";
         writeAttribute(3, "texture_unit");
@@ -1059,45 +1059,37 @@ namespace Ogre
             float scrollAnimU = 0;
             float scrollAnimV = 0;
 
-            EffectMap effMap = pTex->getEffects();
-            if (!effMap.empty())
+            for (const auto& it : pTex->getEffects())
             {
-                EffectMap::const_iterator it;
-                for (it = effMap.begin(); it != effMap.end(); ++it)
+                const TextureUnitState::TextureEffect& ef = it.second;
+                switch (ef.type)
                 {
-                    const TextureUnitState::TextureEffect& ef = it->second;
-                    switch (ef.type)
-                    {
-                    case TextureUnitState::ET_ENVIRONMENT_MAP :
-                        writeEnvironmentMapEffect(ef, pTex);
-                        break;
-                    case TextureUnitState::ET_ROTATE :
-                        writeRotationEffect(ef, pTex);
-                        break;
-                    case TextureUnitState::ET_UVSCROLL :
-                        scrollAnimU = scrollAnimV = ef.arg1;
-                        break;
-                    case TextureUnitState::ET_USCROLL :
-                        scrollAnimU = ef.arg1;
-                        break;
-                    case TextureUnitState::ET_VSCROLL :
-                        scrollAnimV = ef.arg1;
-                        break;
-                    case TextureUnitState::ET_TRANSFORM :
-                        writeTransformEffect(ef, pTex);
-                        break;
-                    default:
-                        break;
-                    }
+                case TextureUnitState::ET_ENVIRONMENT_MAP :
+                    writeEnvironmentMapEffect(ef.subtype);
+                    break;
+                case TextureUnitState::ET_ROTATE :
+                    writeRotationEffect(ef.arg1);
+                    break;
+                case TextureUnitState::ET_UVSCROLL :
+                    scrollAnimU = scrollAnimV = ef.arg1;
+                    break;
+                case TextureUnitState::ET_USCROLL :
+                    scrollAnimU = ef.arg1;
+                    break;
+                case TextureUnitState::ET_VSCROLL :
+                    scrollAnimV = ef.arg1;
+                    break;
+                case TextureUnitState::ET_TRANSFORM :
+                    writeTransformEffect(ef, pTex);
+                    break;
+                default:
+                    break;
                 }
             }
 
             // u and v scroll animation speeds merged, if present serialize scroll_anim
             if(scrollAnimU || scrollAnimV) {
-                TextureUnitState::TextureEffect texEffect;
-                texEffect.arg1 = scrollAnimU;
-                texEffect.arg2 = scrollAnimV;
-                writeScrollEffect(texEffect, pTex);
+                writeScrollEffect(scrollAnimU, scrollAnimV);
             }
 
             // Content type
@@ -1132,32 +1124,35 @@ namespace Ogre
 
     }
     //-----------------------------------------------------------------------
-    void MaterialSerializer::writeEnvironmentMapEffect(const TextureUnitState::TextureEffect& effect, const TextureUnitState *pTex)
+    void MaterialSerializer::writeEnvironmentMapEffect(int type)
     {
         writeAttribute(4, "env_map");
-        switch (effect.subtype)
+        switch (type)
         {
-        case TextureUnitState::ENV_PLANAR:
+        case TEXCALC_ENVIRONMENT_MAP_PLANAR:
             writeValue("planar");
             break;
-        case TextureUnitState::ENV_CURVED:
+        case TEXCALC_ENVIRONMENT_MAP:
             writeValue("spherical");
             break;
-        case TextureUnitState::ENV_NORMAL:
+        case TEXCALC_ENVIRONMENT_MAP_NORMAL:
             writeValue("cubic_normal");
             break;
-        case TextureUnitState::ENV_REFLECTION:
+        case TEXCALC_ENVIRONMENT_MAP_REFLECTION:
             writeValue("cubic_reflection");
+            break;
+        default:
+            OgreAssert(false, "Unknown environment map type");
             break;
         }
     }
     //-----------------------------------------------------------------------
-    void MaterialSerializer::writeRotationEffect(const TextureUnitState::TextureEffect& effect, const TextureUnitState *pTex)
+    void MaterialSerializer::writeRotationEffect(float speed)
     {
-        if (effect.arg1)
+        if (speed)
         {
             writeAttribute(4, "rotate_anim");
-            writeValue(StringConverter::toString(effect.arg1));
+            writeValue(StringConverter::toString(speed));
         }
     }
     //-----------------------------------------------------------------------
@@ -1212,15 +1207,11 @@ namespace Ogre
         writeValue(StringConverter::toString(effect.amplitude));
     }
     //-----------------------------------------------------------------------
-    void MaterialSerializer::writeScrollEffect(
-        const TextureUnitState::TextureEffect& effect, const TextureUnitState *pTex)
+    void MaterialSerializer::writeScrollEffect(float scrollAnimU, float scrollAnimV)
     {
-        if (effect.arg1 || effect.arg2)
-        {
-            writeAttribute(4, "scroll_anim");
-            writeValue(StringConverter::toString(effect.arg1));
-            writeValue(StringConverter::toString(effect.arg2));
-        }
+        writeAttribute(4, "scroll_anim");
+        writeValue(StringConverter::toString(scrollAnimU));
+        writeValue(StringConverter::toString(scrollAnimV));
     }
     //-----------------------------------------------------------------------
     void MaterialSerializer::writeSceneBlendFactor(const SceneBlendFactor sbf)
@@ -1278,7 +1269,7 @@ namespace Ogre
     }
     //-----------------------------------------------------------------------
     void MaterialSerializer::writeSceneBlendFactor(
-        const SceneBlendFactor c_src, const SceneBlendFactor c_dest, 
+        const SceneBlendFactor c_src, const SceneBlendFactor c_dest,
         const SceneBlendFactor a_src, const SceneBlendFactor a_dest)
     {
         writeSceneBlendFactor(c_src, c_dest);
@@ -1432,12 +1423,12 @@ namespace Ogre
     //-----------------------------------------------------------------------
     void MaterialSerializer::writeGpuProgramRef(const String& attrib,
                                                 const GpuProgramPtr& program, const GpuProgramParametersSharedPtr& params)
-    {       
+    {
         bool skipWriting = false;
 
         // Fire pre-write event.
         fireGpuProgramRefEvent(MSE_PRE_WRITE, skipWriting, attrib, program, params, NULL);
-        if (skipWriting)        
+        if (skipWriting)
             return;
 
         mBuffer += "\n";
@@ -1465,7 +1456,7 @@ namespace Ogre
         mGpuProgramDefinitionContainer.insert(program->getName());
 
         // Fire post section write event.
-        fireGpuProgramRefEvent(MSE_POST_WRITE, skipWriting, attrib, program, params, NULL);     
+        fireGpuProgramRefEvent(MSE_POST_WRITE, skipWriting, attrib, program, params, NULL);
     }
     //-----------------------------------------------------------------------
     void MaterialSerializer::writeGPUProgramParameters(
@@ -1496,17 +1487,17 @@ namespace Ogre
             const GpuConstantDefinition& def = it.second;
 
             // get any auto-link
-            const GpuProgramParameters::AutoConstantEntry* autoEntry = 
+            const GpuProgramParameters::AutoConstantEntry* autoEntry =
                 params->findAutoConstantEntry(paramName);
             const GpuProgramParameters::AutoConstantEntry* defaultAutoEntry = 0;
             if (defaultParams)
             {
-                defaultAutoEntry = 
+                defaultAutoEntry =
                     defaultParams->findAutoConstantEntry(paramName);
             }
 
-            writeGpuProgramParameter("param_named", 
-                                     paramName, autoEntry, defaultAutoEntry, 
+            writeGpuProgramParameter("param_named",
+                                     paramName, autoEntry, defaultAutoEntry,
                                      def.isFloat(), def.isDouble(), def.isInt(), def.isUnsignedInt(), def.isSampler(),
                                      def.physicalIndex, def.elementSize * def.arraySize,
                                      params, defaultParams, level, useMainBuffer);
@@ -1528,13 +1519,12 @@ namespace Ogre
         {
             OGRE_LOCK_MUTEX(floatLogical->mutex);
 
-            for(GpuLogicalIndexUseMap::const_iterator i = floatLogical->map.begin();
-                i != floatLogical->map.end(); ++i)
+            for (const auto& f : floatLogical->map)
             {
-                size_t logicalIndex = i->first;
-                const GpuLogicalIndexUse& logicalUse = i->second;
+                size_t logicalIndex = f.first;
+                const GpuLogicalIndexUse& logicalUse = f.second;
 
-                const GpuProgramParameters::AutoConstantEntry* autoEntry = 
+                const GpuProgramParameters::AutoConstantEntry* autoEntry =
                     params->findFloatAutoConstantEntry(logicalIndex);
                 const GpuProgramParameters::AutoConstantEntry* defaultAutoEntry = 0;
                 if (defaultParams)
@@ -1542,8 +1532,8 @@ namespace Ogre
                     defaultAutoEntry = defaultParams->findFloatAutoConstantEntry(logicalIndex);
                 }
 
-                writeGpuProgramParameter("param_indexed", 
-                                         StringConverter::toString(logicalIndex), autoEntry, 
+                writeGpuProgramParameter("param_indexed",
+                                         StringConverter::toString(logicalIndex), autoEntry,
                                          defaultAutoEntry, true, false, false, false, false,
                                          logicalUse.physicalIndex, logicalUse.currentSize,
                                          params, defaultParams, level, useMainBuffer);
@@ -1552,9 +1542,9 @@ namespace Ogre
     }
     //-----------------------------------------------------------------------
     void MaterialSerializer::writeGpuProgramParameter(
-        const String& commandName, const String& identifier, 
-        const GpuProgramParameters::AutoConstantEntry* autoEntry, 
-        const GpuProgramParameters::AutoConstantEntry* defaultAutoEntry, 
+        const String& commandName, const String& identifier,
+        const GpuProgramParameters::AutoConstantEntry* autoEntry,
+        const GpuProgramParameters::AutoConstantEntry* defaultAutoEntry,
         bool isFloat, bool isDouble, bool isInt, bool isUnsignedInt, bool isRegister,
         size_t physicalIndex, size_t physicalSize,
         const GpuProgramParametersSharedPtr& params, GpuProgramParameters* defaultParams,
@@ -1599,7 +1589,7 @@ namespace Ogre
                 else if (isFloat)
                 {
                     different = memcmp(
-                        params->getFloatPointer(physicalIndex), 
+                        params->getFloatPointer(physicalIndex),
                         defaultParams->getFloatPointer(physicalIndex),
                         sizeof(float) * physicalSize) != 0;
                 }
@@ -1613,7 +1603,7 @@ namespace Ogre
                 else if (isInt)
                 {
                     different = memcmp(
-                        params->getIntPointer(physicalIndex), 
+                        params->getIntPointer(physicalIndex),
                         defaultParams->getIntPointer(physicalIndex),
                         sizeof(int) * physicalSize) != 0;
                 }
@@ -1627,11 +1617,11 @@ namespace Ogre
                 //else if (isBool)
                 //{
                 //    // different = memcmp(
-                //    //     params->getBoolPointer(physicalIndex), 
+                //    //     params->getBoolPointer(physicalIndex),
                 //    //     defaultParams->getBoolPointer(physicalIndex),
                 //    //     sizeof(bool) * physicalSize) != 0;
                 //    different = memcmp(
-                //        params->getUnsignedIntPointer(physicalIndex), 
+                //        params->getUnsignedIntPointer(physicalIndex),
                 //        defaultParams->getUnsignedIntPointer(physicalIndex),
                 //        sizeof(uint) * physicalSize) != 0;
                 //}
@@ -1729,7 +1719,7 @@ namespace Ogre
                         writeValue(StringConverter::toString(*pInt++), useMainBuffer);
                     }
                 }
-                else if (isUnsignedInt) 
+                else if (isUnsignedInt)
                 {
                     // Get pointer to start of values
                     const uint* pUInt = params->getUnsignedIntPointer(physicalIndex);
@@ -1858,7 +1848,7 @@ namespace Ogre
             l->materialEventRaised(this, event, skip, mat);
             if (skip)
                 break;
-        }       
+        }
     }
 
     //---------------------------------------------------------------------
@@ -1885,8 +1875,8 @@ namespace Ogre
 
     //---------------------------------------------------------------------
     void MaterialSerializer::fireGpuProgramRefEvent(SerializeEvent event, bool& skip,
-        const String& attrib, 
-        const GpuProgramPtr& program, 
+        const String& attrib,
+        const GpuProgramPtr& program,
         const GpuProgramParametersSharedPtr& params,
         GpuProgramParameters* defaultParams)
     {
@@ -1896,7 +1886,7 @@ namespace Ogre
             if (skip)
                 break;
         }
-    }   
+    }
 
     //---------------------------------------------------------------------
     void MaterialSerializer::fireTextureUnitStateEvent(SerializeEvent event, bool& skip,
@@ -1908,5 +1898,5 @@ namespace Ogre
             if (skip)
                 break;
         }
-    }   
+    }
 }

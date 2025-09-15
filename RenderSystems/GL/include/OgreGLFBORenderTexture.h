@@ -44,7 +44,7 @@ namespace Ogre {
     class _OgreGLExport GLFBORenderTexture: public GLRenderTexture
     {
     public:
-        GLFBORenderTexture(GLFBOManager *manager, const String &name, const GLSurfaceDesc &target, bool writeGamma, uint fsaa);
+        GLFBORenderTexture(const String &name, const GLSurfaceDesc &target, bool writeGamma, uint fsaa);
 
         void getCustomAttribute(const String& name, void* pData) override;
 
@@ -53,7 +53,6 @@ namespace Ogre {
 
         /// Override so we can attach the depth buffer to the FBO
         bool attachDepthBuffer( DepthBuffer *depthBuffer ) override;
-        void detachDepthBuffer() override;
         void _detachDepthBuffer() override;
 
         GLContext* getContext() const override { return mFB.getContext(); }
@@ -85,10 +84,9 @@ namespace Ogre {
 
         GLFBORenderTexture *createRenderTexture(const String &name,
             const GLSurfaceDesc &target, bool writeGamma, uint fsaa) override;
-        
-        /** Request a render buffer. If format is GL_NONE, return a zero buffer.
-        */
-        GLSurfaceDesc requestRenderBuffer(GLenum format, uint32 width, uint32 height, uint fsaa);
+
+        GLSurfaceDesc createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa) override;
+
         /** Get a FBO without depth/stencil for temporary use, like blitting between textures.
         */
         GLuint getTemporaryFBO() { return mTempFBO; }

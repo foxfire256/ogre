@@ -80,6 +80,8 @@ namespace Ogre {
         GCT_SAMPLER2DSHADOW = BCT_SAMPLER + 7,
         GCT_SAMPLER2DARRAY = BCT_SAMPLER + 8,
         GCT_SAMPLER_EXTERNAL_OES = BCT_SAMPLER + 9,
+        GCT_SAMPLER2DARRAYSHADOW = BCT_SAMPLER + 10,
+        GCT_SAMPLERCUBESHADOW = BCT_SAMPLER + 11,
         GCT_MATRIX_2X2 = BCT_FLOAT + 5,
         GCT_MATRIX_2X3 = BCT_FLOAT + 6,
         GCT_MATRIX_2X4 = BCT_FLOAT + 7,
@@ -713,6 +715,8 @@ namespace Ogre {
                 matrices.
             */
             ACT_INVERSE_TRANSPOSE_WORLDVIEWPROJ_MATRIX,
+            /// For layered rendering: The current world, view & projection matrices concatenated
+            ACT_WORLDVIEWPROJ_MATRIX_ARRAY,
 
             // render target related values
             /** -1 if requires texture flipping, +1 otherwise. It's useful when you bypassed
@@ -1660,7 +1664,7 @@ namespace Ogre {
             @param name The name of the parameter
             @param val The value to set
         */
-        void setNamedConstant(const String& name, Real val);
+        void setNamedConstant(const String& name, float val);
         /// @overload
         void setNamedConstant(const String& name, int val);
         /// @overload

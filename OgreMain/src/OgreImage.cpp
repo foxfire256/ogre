@@ -52,7 +52,7 @@ namespace Ogre {
             return;
 
         if (!buffer)
-            buffer = OGRE_ALLOC_T(uchar, size, MEMCATEGORY_GENERAL);
+            buffer = (uchar*)malloc(size);
         loadDynamicImage(buffer, width, height, depth, format, autoDelete);
     }
 
@@ -63,7 +63,7 @@ namespace Ogre {
         if (!mAutoDelete || !mBuffer || mBufSize != size)
         {
             freeMemory();
-            mBuffer = new uchar[size]; // allocate
+            mBuffer = (uchar*)malloc(size); // allocate
         }
 
         // make sure freeMemory() does nothing, we set this true immediately after
@@ -91,7 +91,7 @@ namespace Ogre {
         //Only delete if this was not a dynamic image (meaning app holds & destroys buffer)
         if( mBuffer && mAutoDelete )
         {
-            OGRE_FREE(mBuffer, MEMCATEGORY_GENERAL);
+            free(mBuffer);
             mBuffer = NULL;
         }
 
@@ -277,9 +277,17 @@ namespace Ogre {
         return Codec::getCodec(formatextension)->encode(this);
     }
     //-----------------------------------------------------------------------------
-    Image & Image::load(const DataStreamPtr& stream, const String& type )
+    Image & Image::load(const DataStreamPtr& stream, String type )
     {
         freeMemory();
+
+        if (type.empty())
+        {
+            String base, ext;
+            StringUtil::splitBaseFilename(stream->getName(), base, ext);
+            if (!ext.empty())
+                type = ext;
+        }
 
         Codec * pCodec = 0;
         if (!type.empty())

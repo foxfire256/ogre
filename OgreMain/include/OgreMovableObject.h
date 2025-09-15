@@ -50,8 +50,8 @@ namespace Ogre {
     */
     /** Abstract class defining a movable object in a scene.
 
-            Instances of this class are discrete, relatively small, movable objects
-            which are attached to SceneNode objects to define their position.
+        Instances of this class are discrete, relatively small, movable objects
+        which are attached to SceneNode objects to define their position.
     */
     class _OgreExport MovableObject : public ShadowCaster, public AnimableObject, public MovableAlloc
     {
@@ -146,8 +146,6 @@ namespace Ogre {
         mutable AxisAlignedBox mWorldAABB;
         // Cached world bounding sphere
         mutable Sphere mWorldBoundingSphere;
-        /// World space AABB of this object's dark cap
-        mutable AxisAlignedBox mWorldDarkCapBounds;
         /// List of lights for this object
         mutable LightList mLightList;
         /// The last frame that this light list was updated in
@@ -184,17 +182,15 @@ namespace Ogre {
 
         /** Notifies the movable object that hardware resources were lost
 
-                Called automatically by RenderSystem if hardware resources
-                were lost and can not be restored using some internal mechanism.
-                Among affected resources are nested shadow renderables, ManualObjects, etc.
+            Called automatically by RenderSystem if hardware resources
+            were lost and can not be restored using some internal mechanism.
+            Among affected resources are nested shadow renderables, ManualObjects, etc.
         */
         virtual void _releaseManualHardwareResources() {}
 
         /** Notifies the movable object that hardware resources should be restored
 
-                Called automatically by RenderSystem if hardware resources
-                were lost and can not be restored using some internal mechanism.
-                Among affected resources are nested shadow renderables, ManualObjects, etc.
+            @copydetails _releaseManualHardwareResources
         */
         virtual void _restoreManualHardwareResources() {}
 
@@ -245,14 +241,14 @@ namespace Ogre {
 
         /** Internal method to notify the object of the camera to be used for the next rendering operation.
 
-                Certain objects may want to do specific processing based on the camera position. This method notifies
-                them in case they wish to do this.
+            Certain objects may want to do specific processing based on the camera position. This method notifies
+            them in case they wish to do this.
         */
         virtual void _notifyCurrentCamera(Camera* cam);
 
         /** Retrieves the local axis-aligned bounding box for this object.
 
-                This bounding box is in local coordinates.
+            This bounding box is in local coordinates.
         */
         virtual const AxisAlignedBox& getBoundingBox(void) const = 0;
 
@@ -270,8 +266,8 @@ namespace Ogre {
         virtual const Sphere& getWorldBoundingSphere(bool derive = false) const;
         /** Internal method by which the movable object must add Renderable subclass instances to the rendering queue.
 
-                The engine will call this method when this object is to be rendered. The object must then create one or more
-                Renderable subclass instances which it places on the passed in Queue for rendering.
+            The engine will call this method when this object is to be rendered. The object must then create one or more
+            Renderable subclass instances which it places on the passed in Queue for rendering.
         */
         virtual void _updateRenderQueue(RenderQueue* queue) = 0;
 
@@ -492,15 +488,6 @@ namespace Ogre {
         */
         LightList* _getLightList() { return &mLightList; }
 
-        /// Returns details of the edges which might be used to determine a silhouette
-        EdgeData* getEdgeList(void) override { return NULL; }
-        /// Define a default implementation of method from ShadowCaster which implements no shadows
-        const ShadowRenderableList& getShadowVolumeRenderableList(
-            const Light* light, const HardwareIndexBufferPtr& indexBuffer,
-            size_t& indexBufferUsedSize, float extrusionDist, int flags = 0) override;
-
-        const AxisAlignedBox& getLightCapBounds(void) const override;
-        const AxisAlignedBox& getDarkCapBounds(const Light& light, Real dirLightExtrusionDist) const override;
         /** Sets whether or not this object will cast shadows.
 
         This setting simply allows you to turn on/off shadows for a given object.

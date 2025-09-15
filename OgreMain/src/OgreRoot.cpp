@@ -41,7 +41,6 @@ THE SOFTWARE.
 #include "OgrePlugin.h"
 #include "OgreShadowVolumeExtrudeProgram.h"
 #include "OgreResourceBackgroundQueue.h"
-#include "OgreEntity.h"
 #include "OgreBillboardSet.h"
 #include "OgreBillboardChain.h"
 #include "OgreRibbonTrail.h"
@@ -131,12 +130,12 @@ namespace Ogre {
 #else
             mLogManager->createLog(logFileName, true, true);
 #endif
-        }
 
 #if OGRE_PLATFORM == OGRE_PLATFORM_ANDROID
-        mAndroidLogger.reset(new AndroidLogListener());
-        mLogManager->getDefaultLog()->addListener(mAndroidLogger.get());
+            mAndroidLogger.reset(new AndroidLogListener());
+            mLogManager->getDefaultLog()->addListener(mAndroidLogger.get());
 #endif
+        }
 
         mDynLibManager = std::make_unique<DynLibManager>();
         mArchiveManager = std::make_unique<ArchiveManager>();
@@ -266,7 +265,10 @@ namespace Ogre {
         StringInterface::cleanupDictionary();
 
 #if OGRE_PLATFORM == OGRE_PLATFORM_ANDROID
-        mLogManager->getDefaultLog()->removeListener(mAndroidLogger.get());
+	if(mAndroidLogger)
+	{
+            mLogManager->getDefaultLog()->removeListener(mAndroidLogger.get());
+	}
 #endif
     }
 
@@ -306,14 +308,12 @@ namespace Ogre {
             of << "Render System=" << std::endl;
         }
 
-        for (auto *rs : getAvailableRenderers())
+        for (const auto& r : getAvailableRenderers())
         {
             of << std::endl;
-            of << "[" << rs->getName() << "]" << std::endl;
-            const ConfigOptionMap& opts = rs->getConfigOptions();
-            for (ConfigOptionMap::const_iterator pOpt = opts.begin(); pOpt != opts.end(); ++pOpt)
-            {
-                of << pOpt->first << "=" << pOpt->second.currentValue << std::endl;
+            of << "[" << r->getName() << "]" << std::endl;
+            for (const auto& o : r->getConfigOptions()) {
+                of << o.first << "=" << o.second.currentValue << std::endl;
             }
         }
 
@@ -539,6 +539,8 @@ namespace Ogre {
 
         if (autoCreateWindow)
         {
+            LogManager::getSingleton().logWarning(
+                "Root::initialise: autoCreateWindow is deprecated, use createRenderWindow instead");
             auto desc = mActiveRenderer->getRenderWindowDescription();
             desc.name = windowTitle;
             mAutoWindow = createRenderWindow(desc);

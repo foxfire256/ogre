@@ -31,13 +31,13 @@ This should look familiar from the previous tutorial.
 @snippet Samples/Simple/include/Terrain.h camera_inf
 
 The last thing we do is to set the far clip distance to zero (which means ''no'' far clipping).
-## Setting Up a Light for Our Terrain
+## Setting Up a Light
 The Terrain component can use a directional light to compute a lightmap. Let's add a Light for this purpose and add some ambient light to the scene while we're at it.
 
 @snippet Samples/Simple/include/Terrain.h light
 
 This was also covered in the previous tutorial if you're confused by any of it. The `normalise` method will make the vector's length equal to one while maintaining its direction. This is something that you will see a lot of when working with vectors. It is done to avoid extra factors showing up in calculations.
-## Terrain loading overview {#bt3Overview}
+## Loading overview {#bt3Overview}
 Now we'll get into the actual terrain setup. First, we create TerrainGlobalOptions.
 
 @snippet Samples/Simple/include/Terrain.h global_opts
@@ -48,7 +48,7 @@ Next we construct our TerrainGroup object. This will manage a grid of Terrains.
 
 @snippet Samples/Simple/include/Terrain.h terrain_create
 
-The TerrainGroup constructor takes the SceneManager as its first parameter. It then takes an alignment option, terrain size, and terrain world size. You can read the Ogre::TerrainGroup for more information. The `setFilenameConvention` allows us to choose how our terrain will be saved. Finally, we set the origin to be used for our terrain.
+The TerrainGroup constructor takes the SceneManager as its first parameter. It then takes an alignment option, terrain size, and terrain world size. You can read the Ogre::TerrainGroup for more information. Finally, we set the origin to be used for our terrain.
 
 The next thing we will do is call our terrain configuration method, which we will fill in soon. Make sure to pass the Light we created as a parameter.
 ```cpp
@@ -69,7 +69,7 @@ We get a TerrainIterator from our TerrainGroup and then loop through any Terrain
 The last thing we will do is make sure to cleanup any temporary resources that were created while configuring our terrain.
 
 That completes our `setupContent` method. Now we just have to complete all of the methods we jumped over.
-## Terrain appearance {#bt3Appearance}
+## Appearance {#bt3Appearance}
 The %Ogre Terrain component has a large number of options that can be set to change how the terrain is rendered. To start out, we configure the level of detail (LOD). There are two LOD approaches in the Terrain component, one controlling the geometry and the other controlling the texture.
 
 @snippet Samples/Simple/include/Terrain.h configure_lod
@@ -98,11 +98,18 @@ After that, we set each texture's `worldSize` and add them to the list.
 
 The texture's `worldSize` determines how big each splat of texture is going to be when applied to the terrain. A smaller value will increase the resolution of the rendered texture layer because each piece will be stretched less to fill in the terrain.
 
+## Merging textures {#bt3MergingTextures}
+
 The default material generator requires two textures maps per layer:
 1. one containing diffuse + specular data and
 2. another containing normal + displacement data.
 
-It is recommended that you pre-merge your textures accordingly e.g. using [ImageMagick](https://imagemagick.org/). This way you save storage space and speed up loading.
+It is recommended that you pre-merge your textures accordingly e.g. using [ImageMagick](https://imagemagick.org/) like this:
+```sh
+convert Ground37_col.jpg Ground37_spec.png -compose copy-opacity -composite Ground37_diffspec.dds
+```
+This way you save storage space and speed up loading.
+
 However if you want more flexibility, you can also make %Ogre combine the images at loading accordingly as shown below
 
 @snippet Samples/Simple/include/Terrain.h tex_from_src
@@ -125,29 +132,37 @@ Finally, we will finish up our configuration methods by completing the `initBlen
 
 @snippet Samples/Simple/include/Terrain.h blendmap
 
-## Terrain Loading Label {#bt3LoadingLabel}
+## Storing changes {#bt3StoringChanges}
 
-There are a number of things we will improve. We will add a label to the overlay that allows us to see when the terrain generation has finished. We will also make sure to save our terrain so that it can be reloaded instead of rebuilding it every time. Finally, we will make sure to clean up after ourselves.
+Next, we'll implement the ability to save terrain modifications. The first step is to specify the storage location for the terrain data by adding a writable path to the terrain resource group, configured as follows:
 
-First, we need to add a data member to private section of our Sample_Terrain header.
+@snippet Samples/Simple/include/Terrain.h terrain_save_config
 
-@snippet Samples/Simple/include/Terrain.h infolabel
+The `setFilenameConvention` method lets us define the naming pattern for terrain files. We've opted for a straightforward format that generates filenames like `TerrainSample_00000000.bin`, where the numeric portion corresponds to the terrain's index within the TerrainGroup.
 
+To control when terrain saving occurs, we'll tie it to the Ctrl+S keyboard shortcut by adding this logic to the `keyPressed` handler:
+
+@snippet Samples/Simple/include/Terrain.h terrain_save_trigger
+
+Saving the terrain serves two purposes: it preserves user modifications and optimizes future loading. When reloaded, the terrain will use the pre-saved data rather than regenerating it, resulting in faster load times.
+
+## Loading Label {#bt3LoadingLabel}
+
+We will add a label to the overlay that allows us to see when the terrain generation has finished.
 Let's construct this label in the `createFrameListener` method.
 
 @snippet Samples/Simple/include/Terrain.h infolabel_create
 
 We use the TrayManager pointer that was defined in SdkSample to request the creation of a new label. This method takes a TrayLocation, a name for the label, a caption to display, and a width.
 
-Next we will add logic to `frameRenderingQueued` that tracks whether the terrain is still loading or not. We will also take care of saving our terrain after it has been loaded. Add the following to `frameRenderingQueued` right after the call to the parent method:
+Next we will add logic to `frameRenderingQueued` that tracks whether the terrain is still loading or not. Add the following to `frameRenderingQueued` right after the call to the parent method:
 
 @snippet Samples/Simple/include/Terrain.h loading_label
 
 The first thing we do is determine if our terrain is still being built. If it is, then we add our Label to the tray and ask for it to be shown. Then we check to see if any new terrains have been imported. If they have, then we display text saying that the terrain is still being built. Otherwise we assume the textures are being updated.
+If the terrain is no longer being updated, then we ask the OgreBites::TrayManager to remove the our Label widget and hide the Label.
 
-If the terrain is no longer being updated, then we ask the OgreBites::TrayManager to remove the our Label widget and hide the Label. We also check to see if new terrains have been imported and save them for future use. In our case, the file will be named 'terrain_00000000.dat' and it will reside in your 'bin' directory alongside your application's executable. After saving any new terrains, we reset the `mTerrainsImported` flag.
-
-Compile and run your application again. You should now see a Label at the top of the screen while the terrain is being built. While the terrain is loading, you will not be able to press escape to exit and your movement controls will be choppy. This is what loading screens are for in games. But if you exit and run the application a second time, then it should load the terrain file that was saved the first time. This should be a much faster process.
+Compile and run your application again. You should now see a Label at the top of the screen while the terrain is being built. While the terrain is loading, you will not be able to press escape to exit and your movement controls will be choppy. This is what loading screens are for in games.
 
 ![](bt3_building_terrain_label_visual.png)
 
@@ -198,7 +213,7 @@ mSceneMgr->setSkyPlane(true, plane, "Examples/SpaceSkyPlane", 1500, 75);
 ```
 The fourth parameter is the size of the SkyPlane (1500x1500 units), and the fifth parameter is number of times to tile the texture.
 
-Compile and run your application. Again, the texture we are using is rather low-resolution. A high definition texture would look much better. It also doesn't tile very well. These issuse can both be fixed by using higher quality resources. The real problem is that it is very likely a user will be able to see the end of the SkyPlane as soon as they move anywhere near the edge of the terrain. For this reason, a SkyPlane is often used most in scenes that have high walls. In these cases, a SkyPlane offers a decent increase in performance over the other techniques.
+Compile and run your application. Again, the texture we are using is rather low-resolution. A high definition texture would look much better. It also doesn't tile very well. These issues can both be fixed by using higher quality resources. The real problem is that it is very likely a user will be able to see the end of the SkyPlane as soon as they move anywhere near the edge of the terrain. For this reason, a SkyPlane is often used most in scenes that have high walls. In these cases, a SkyPlane offers a decent increase in performance over the other techniques.
 
 The SkyPlane has some other attributes that can be used to produce a better effect. The sixth parameter of the `setSkyPlane` method is the "renderFirst" parameter we covered for the past two methods. The seventh parameter allows us to specify a curvature for the SkyPlane. This will pull down the corners of the SkyPlane turning it into a curved surface instead of a flat plane. If we set the curvature to something other flat, we also need to set the number of segments Ogre should use to render the SkyPlane. When the SkyPlane was a flat plane, everything was one large square, but if we add curvature, then it will require a more complicated geometry. The eighth and ninth parameters to the function are the number of segments for each dimension of the plane.
 

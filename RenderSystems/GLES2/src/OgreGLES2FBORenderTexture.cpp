@@ -39,10 +39,10 @@ THE SOFTWARE.
 namespace Ogre {
 
 //-----------------------------------------------------------------------------    
-    GLES2FBORenderTexture::GLES2FBORenderTexture(GLES2FBOManager *manager, const String &name,
+    GLES2FBORenderTexture::GLES2FBORenderTexture(const String &name,
         const GLSurfaceDesc &target, bool writeGamma, uint fsaa):
-        GLRenderTexture(name, target, writeGamma, std::min(manager->getMaxFSAASamples(), (int)fsaa)),
-        mFB(manager, mFSAA)
+        GLRenderTexture(name, target, writeGamma, fsaa),
+        mFB(fsaa)
     {
         // Bind target to surface 0 and initialise
         mFB.bindSurface(0, target);
@@ -95,12 +95,6 @@ namespace Ogre {
             mFB.attachDepthBuffer( depthBuffer );
 
         return result;
-    }
-    //-----------------------------------------------------------------------------
-    void GLES2FBORenderTexture::detachDepthBuffer()
-    {
-        mFB.detachDepthBuffer();
-        GLRenderTexture::detachDepthBuffer();
     }
     //-----------------------------------------------------------------------------
     void GLES2FBORenderTexture::_detachDepthBuffer()
@@ -498,14 +492,17 @@ namespace Ogre {
     GLES2FBORenderTexture *GLES2FBOManager::createRenderTexture(const String &name, 
         const GLSurfaceDesc &target, bool writeGamma, uint fsaa)
     {
-        GLES2FBORenderTexture *retval = new GLES2FBORenderTexture(this, name, target, writeGamma, fsaa);
+        GLES2FBORenderTexture *retval = new GLES2FBORenderTexture(name, target, writeGamma, fsaa);
         return retval;
     }
 
     void GLES2FBOManager::bind(RenderTarget *target)
     {
         if(auto fbo = dynamic_cast<GLRenderTarget*>(target)->getFBO())
+        {
+            fbo->determineFBOBufferSharingAllowed(*target);
             fbo->bind(true);
+        }
         else
         {
             // Non-multisampled screen buffer is FBO #1 on iOS, multisampled is yet another,
@@ -517,34 +514,14 @@ namespace Ogre {
             OGRE_CHECK_GL_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, mainfbo));
         }
     }
-    
-    GLSurfaceDesc GLES2FBOManager::requestRenderBuffer(GLenum format, uint32 width, uint32 height, uint fsaa)
+
+    GLSurfaceDesc GLES2FBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa)
     {
         GLSurfaceDesc retval;
-        retval.buffer = 0; // Return 0 buffer if GL_NONE is requested
-        if(format != GL_NONE)
-        {
-            RBFormat key(format, width, height, fsaa);
-            RenderBufferMap::iterator it = mRenderBufferMap.find(key);
-            if(it != mRenderBufferMap.end())
-            {
-                retval.buffer = it->second.buffer;
-                retval.zoffset = 0;
-                retval.numSamples = fsaa;
-                // Increase refcount
-                ++it->second.refcount;
-            }
-            else
-            {
-                // New one
-                GLES2RenderBuffer *rb = OGRE_NEW GLES2RenderBuffer(format, width, height, fsaa);
-                mRenderBufferMap[key] = RBRef(rb);
-                retval.buffer = rb;
-                retval.zoffset = 0;
-                retval.numSamples = fsaa;
-            }
-        }
-//        std::cerr << "Requested renderbuffer with format " << std::hex << format << std::dec << " of " << width << "x" << height << " :" << retval.buffer << std::endl;
+        auto* rb = OGRE_NEW GLES2RenderBuffer(format, width, height, fsaa);
+        retval.buffer = rb;
+        retval.zoffset = 0;
+        retval.numSamples = fsaa;
         return retval;
     }
 }

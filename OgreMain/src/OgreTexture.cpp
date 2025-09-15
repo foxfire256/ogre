@@ -161,11 +161,6 @@ namespace Ogre {
         return getNumFaces() * PixelUtil::getMemorySize(mWidth, mHeight, mDepth, mFormat);
     }
     //--------------------------------------------------------------------------
-    uint32 Texture::getNumFaces(void) const
-    {
-        return getTextureType() == TEX_TYPE_CUBE_MAP ? 6 : 1;
-    }
-    //--------------------------------------------------------------------------
     void Texture::_loadImages( const ConstImagePtrList& images )
     {
         OgreAssert(!images.empty(), "Cannot load empty vector of images");
@@ -356,6 +351,32 @@ namespace Ogre {
             }
         }
     }
+
+    void Texture::createSurfaceList(void)
+    {
+        mSurfaceList.clear();
+
+        uint32 depth = mDepth;
+        for (uint8 face = 0; face < getNumFaces(); face++)
+        {
+            uint32 width = mWidth;
+            uint32 height = mHeight;
+
+            for (uint32 mip = 0; mip <= getNumMipmaps(); mip++)
+            {
+                auto buf = createSurface(face, mip, width, height, depth);
+                mSurfaceList.push_back(buf);
+
+                if (width > 1)
+                    width = width / 2;
+                if (height > 1)
+                    height = height / 2;
+                if (depth > 1 && mTextureType != TEX_TYPE_2D_ARRAY)
+                    depth = depth / 2;
+            }
+        }
+    }
+
     //-----------------------------------------------------------------------------
     void Texture::unloadImpl(void)
     {
@@ -376,6 +397,15 @@ namespace Ogre {
             }
         }
     }
+
+    RenderTarget* Texture::getRenderTarget(size_t slice, size_t mipmap)
+    {
+        if(mTextureType == TEX_TYPE_CUBE_MAP)
+            return getBuffer(slice, mipmap)->getRenderTarget();
+
+        return getBuffer(0, mipmap)->getRenderTarget(slice);
+    }
+
     const HardwarePixelBufferSharedPtr& Texture::getBuffer(size_t face, size_t mipmap)
     {
         OgreAssert(face < getNumFaces(), "out of range");
@@ -394,7 +424,7 @@ namespace Ogre {
 
         for (uint32 face = 0; face < getNumFaces(); ++face)
         {
-            for (uint32 mip = 0; mip < numMips; ++mip)
+            for (uint32 mip = 0; mip <= numMips; ++mip)
             {
                 getBuffer(face, mip)->blitToMemory(destImage.getPixelBox(face, mip));
             }

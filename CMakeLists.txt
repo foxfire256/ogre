@@ -43,7 +43,7 @@ if(POLICY CMP0086)
   cmake_policy(SET CMP0086 NEW)
 endif()
 
-if (APPLE AND NOT ANDROID AND NOT EMSCRIPTEN)
+if (APPLE AND NOT ANDROID AND NOT EMSCRIPTEN AND NOT ANDROID_PLATFORM)
   SET(CMAKE_SIZEOF_VOID_P 4)
 
   if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
@@ -63,7 +63,7 @@ if (APPLE AND NOT ANDROID AND NOT EMSCRIPTEN)
   add_definitions(-D__ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES=0)
 endif ()
 
-project(OGRE VERSION 14.2.3)
+project(OGRE VERSION 14.4.1)
 
 # extra version info
 set(OGRE_VERSION_SUFFIX "")
@@ -75,7 +75,7 @@ set(OGRE_VERSION_DASH_SEPARATED "${OGRE_VERSION_MAJOR}-${OGRE_VERSION_MINOR}-${O
 
 
 # Include necessary submodules
-set(CMAKE_MODULE_PATH
+list(APPEND CMAKE_MODULE_PATH
   "${PROJECT_SOURCE_DIR}/CMake"
   "${PROJECT_SOURCE_DIR}/CMake/Utils"
   "${PROJECT_SOURCE_DIR}/CMake/Packages"
@@ -182,10 +182,6 @@ if (MINGW)
     # the atomic primitives
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i686")
   endif ()
-  # disable this optimisation because it breaks release builds (reason unknown)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-tree-slp-vectorize")
-  # Ignore some really annoying warnings which also happen in dependencies
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=cast-qual -Wno-unused-local-typedefs")
 endif ()
 
 include(GenerateExportHeader)
@@ -196,7 +192,7 @@ if((CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU") AND NOT OGRE_STATIC)
   set(OGRE_VISIBILITY_FLAGS "-DOGRE_GCC_VISIBILITY") # for legacy headers
 endif()
 
-# determine system endianess
+# determine system endianness
 if (MSVC OR ANDROID OR EMSCRIPTEN OR APPLE_IOS)
   # This doesn't work on VS 2010
   # MSVC only builds for intel anyway
@@ -372,7 +368,7 @@ cmake_dependent_option(OGRE_CONFIG_FILESYSTEM_UNICODE "paths expected to be in U
 cmake_dependent_option(OGRE_INSTALL_SAMPLES "Install Ogre demos." TRUE "OGRE_BUILD_SAMPLES" FALSE)
 option(OGRE_INSTALL_TOOLS "Install Ogre tools." TRUE)
 option(OGRE_INSTALL_DOCS "Install documentation." TRUE)
-cmake_dependent_option(OGRE_INSTALL_PDB "Install debug pdb files" TRUE "MSVC" FALSE)
+cmake_dependent_option(OGRE_INSTALL_PDB "Install debug pdb files" TRUE "MSVC;NOT OGRE_STATIC" FALSE)
 option(OGRE_PROFILING "Enable internal instrumentation." FALSE)
 set(OGRE_PROFILING_REMOTERY_PATH "" CACHE PATH "set this to Remotery/lib to use Remotery instead of the buildin profiler")
 cmake_dependent_option(OGRE_CONFIG_STATIC_LINK_CRT "Statically link the MS CRT dlls (msvcrt)" FALSE "MSVC" FALSE)

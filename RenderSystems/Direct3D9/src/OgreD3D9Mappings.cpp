@@ -26,6 +26,7 @@ THE SOFTWARE.
 -----------------------------------------------------------------------------
 */
 #include "OgreD3D9Mappings.h"
+#include "OgreHardwareVertexBuffer.h"
 #include "OgreString.h"
 #include "OgreStringConverter.h"
 #include "OgreLogManager.h"
@@ -84,13 +85,13 @@ namespace Ogre
     {
         switch( tam )
         {
-        case TextureUnitState::TAM_WRAP:
+        case TAM_WRAP:
             return D3DTADDRESS_WRAP;
-        case TextureUnitState::TAM_MIRROR:
+        case TAM_MIRROR:
             return D3DTADDRESS_MIRROR;
-        case TextureUnitState::TAM_CLAMP:
+        case TAM_CLAMP:
             return D3DTADDRESS_CLAMP;
-        case TextureUnitState::TAM_BORDER:
+        case TAM_BORDER:
             if (devCaps.TextureAddressCaps & D3DPTADDRESSCAPS_BORDER)
                 return D3DTADDRESS_BORDER;
             else
@@ -530,6 +531,10 @@ namespace Ogre
         case VET_USHORT4_NORM:
             // valid only with vertex shaders >= 2.0
             return D3DDECLTYPE_USHORT4N;
+        case VET_HALF2:
+            return D3DDECLTYPE_FLOAT16_2;
+        case VET_HALF4:
+            return D3DDECLTYPE_FLOAT16_4;
         }
         // to keep compiler happy
         return D3DDECLTYPE_FLOAT3;

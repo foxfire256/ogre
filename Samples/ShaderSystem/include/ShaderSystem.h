@@ -42,8 +42,8 @@ public:
     bool isVisible(const Vector3& vert, FrustumPlane* culledBy = 0) const override {return true;};
     bool projectSphere(const Sphere& sphere, 
         Real* left, Real* top, Real* right, Real* bottom) const override {*left = *bottom = -1.0f; *right = *top = 1.0f; return true;};
-    Real getNearClipDistance(void) const {return 1.0;};
-    Real getFarClipDistance(void) const {return 9999999999999.0f;};
+    float getNearClipDistance(void) const override {return 1.0;};
+    float getFarClipDistance(void) const override {return 9999999999999.0f;};
     const Plane& getFrustumPlane( unsigned short plane ) const override
     {
         return mFrustumPlanes[plane];
@@ -156,7 +156,6 @@ protected:
 
     void createInstancedViewports();
     void destroyInstancedViewports();
-    void destroyInstancedViewportsFactory();
 
     /** Pick the target object. */
     void pickTargetObject( const MouseButtonEvent &evt );
@@ -186,16 +185,15 @@ protected:
     SelectMenu*                         mShadowMenu;            // The shadow type menu.
     bool                                mPerPixelFogEnable;     // When true the RTSS will do per pixel fog calculations.
     bool                                mSpecularEnable;        // The current specular state.  
-    RTShader::SubRenderStateFactory*    mTextureAtlasFactory;
+    std::unique_ptr<RTShader::SubRenderStateFactory>    mTextureAtlasFactory;
     RTShader::SubRenderState*           mInstancedViewportsSubRenderState;// todo - doc
     bool                                mInstancedViewportsEnable;      // todo - doc
     InfiniteFrustum                     mInfiniteFrustum;               // todo - doc
-    BillboardSet*                       mBbsFlare;                      // todo - doc
     bool                                mAddedLotsOfModels;             // todo - doc
     std::vector<Entity *>              mLotsOfModelsEntities;          // todo - doc       
     std::vector<SceneNode *>           mLotsOfModelsNodes;             // todo - doc  
     int                                 mNumberOfModelsAdded;           // todo - doc   
-    RTShader::SubRenderStateFactory *   mInstancedViewportsFactory;     // todo - doc
+    std::unique_ptr<RTShader::SubRenderStateFactory>   mInstancedViewportsFactory;     // todo - doc
 
     RTShader::SubRenderState*           mReflectionMapSubRS;    // The reflection map sub render state.
     RTShader::LayeredBlending*          mLayerBlendSubRS;       // The layer blending sub render state.

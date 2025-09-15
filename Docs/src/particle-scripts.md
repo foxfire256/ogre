@@ -18,24 +18,24 @@ This section describes to attributes which you can set on every particle system 
 
 -   [quota](#quota)
 -   [material](#particle_005fmaterial)
--   [particle\_width](#particle_005fwidth)
--   [particle\_height](#particle_005fheight)
--   [cull\_each](#cull_005feach)
+-   [particle_width](#particle_005fwidth)
+-   [particle_height](#particle_005fheight)
+-   [cull_each](#cull_005feach)
 -   [renderer](#particle_005frenderer)
 -   [sorted](#particle_005fsorted)
--   [local\_space](#particle_005flocalspace)
--   [iteration\_interval](#iteration_005finterval)
--   [nonvisible\_update\_timeout](#nonvisible_005fupdate_005ftimeout)
+-   [local_space](#particle_005flocalspace)
+-   [iteration_interval](#iteration_005finterval)
+-   [nonvisible_update_timeout](#nonvisible_005fupdate_005ftimeout)
 
 @par Billboard Renderer Attributes
 
--   [billboard\_type](#billboard_005ftype)
--   [billboard\_origin](#billboard_005forigin)
--   [billboard\_rotation\_type](#billboard_005frotation_005ftype)
--   [common\_direction](#common_005fdirection)
--   [common\_up\_vector](#common_005fup_005fvector)
--   [point\_rendering](#particle_005fpoint_005frendering)
--   [accurate\_facing](#particle_005faccurate_005ffacing)
+-   [billboard_type](#billboard_005ftype)
+-   [billboard_origin](#billboard_005forigin)
+-   [billboard_rotation_type](#billboard_005frotation_005ftype)
+-   [common_direction](#common_005fdirection)
+-   [common_up_vector](#common_005fup_005fvector)
+-   [point_rendering](#particle_005fpoint_005frendering)
+-   [accurate_facing](#particle_005faccurate_005ffacing)
 
 @see @ref Particle-Emitters
 @see @ref Particle-Affectors
@@ -53,7 +53,7 @@ format: quota &lt;max\_particles&gt;<br> example: quota 10000<br> default: 10<br
 
 ### material
 
-Sets the name of the material which all particles in this system will use. All particles in a system use the same material, although each particle can tint this material through the use of it’s colour property.
+Sets the name of the material which all particles in this system will use. All particles in a system use the same material, although each particle can tint this material through the use of its colour property.
 
 format: material &lt;material\_name&gt;<br> example: material Examples/Flare<br> default: none (blank material)<br>
 
@@ -131,7 +131,7 @@ These are actually attributes of the @c billboard particle renderer (the default
 
 ### billboard\_type
 
-There is more than 1 way to orient a billboard. The classic approach is for the billboard to directly face the camera: this is the default behaviour. However this arrangement only looks good for particles which are representing something vaguely spherical like a light flare. For more linear effects like laser fire, you actually want the particle to have an orientation of it’s own.
+There is more than 1 way to orient a billboard. The classic approach is for the billboard to directly face the camera: this is the default behaviour. However this arrangement only looks good for particles which are representing something vaguely spherical like a light flare. For more linear effects like laser fire, you actually want the particle to have an orientation of its own.
 
 format: billboard\_type &lt;point|oriented\_common|oriented\_self|perpendicular\_common|perpendicular\_self&gt;<br> example: billboard\_type oriented\_self<br> default: point<br>
 
@@ -144,7 +144,7 @@ The default arrangement, this approximates spherical particles and the billboard
 
 </dd> <dt>oriented\_common</dt> <dd>
 
-Particles are oriented around a common, typically fixed direction vector (see [common\_direction](#common_005fdirection)), which acts as their local Y axis. The billboard rotates only around this axis, giving the particle some sense of direction. Good for rainstorms, starfields etc where the particles will traveling in one direction - this is slightly faster than oriented\_self (see below).
+Particles are oriented around a common, typically fixed direction vector (see [common_direction](#common_005fdirection)), which acts as their local Y axis. The billboard rotates only around this axis, giving the particle some sense of direction. Good for rainstorms, starfields etc where the particles will traveling in one direction - this is slightly faster than oriented\_self (see below).
 
 </dd> <dt>oriented\_self</dt> <dd>
 
@@ -152,11 +152,11 @@ Particles are oriented around their own direction vector, which acts as their lo
 
 </dd> <dt>perpendicular\_common</dt> <dd>
 
-Particles are perpendicular to a common, typically fixed direction vector (see [common\_direction](#common_005fdirection)), which acts as their local Z axis, and their local Y axis coplanar with common direction and the common up vector (see [common\_up\_vector](#common_005fup_005fvector)). The billboard never rotates to face the camera, you might use double-side material to ensure particles never culled by back-facing. Good for aureolas, rings etc where the particles will perpendicular to the ground - this is slightly faster than perpendicular\_self (see below).
+Particles are perpendicular to a common, typically fixed direction vector (see [common_direction](#common_005fdirection)), which acts as their local Z axis, and their local Y axis coplanar with common direction and the common up vector (see [common_up_vector](#common_005fup_005fvector)). The billboard never rotates to face the camera, you might use double-side material to ensure particles never culled by back-facing. Good for aureolas, rings etc where the particles will perpendicular to the ground - this is slightly faster than perpendicular\_self (see below).
 
 </dd> <dt>perpendicular\_self</dt> <dd>
 
-Particles are perpendicular to their own direction vector, which acts as their local Z axis, and their local Y axis coplanar with their own direction vector and the common up vector (see [common\_up\_vector](#common_005fup_005fvector)). The billboard never rotates to face the camera, you might use double-side material to ensure particles never culled by back-facing. Good for rings stack etc where the particles will perpendicular to their traveling direction.
+Particles are perpendicular to their own direction vector, which acts as their local Z axis, and their local Y axis coplanar with their own direction vector and the common up vector (see [common_up_vector](#common_005fup_005fvector)). The billboard never rotates to face the camera, you might use double-side material to ensure particles never culled by back-facing. Good for rings stack etc where the particles will perpendicular to their traveling direction.
 
 </dd> </dl> <a name="billboard_005forigin"></a><a name="billboard_005forigin-1"></a>
 
@@ -191,7 +191,7 @@ Billboard particles will rotate the texture coordinates to according with partic
 
 ### common\_direction
 
-Only required if [billboard\_type](#billboard_005ftype) is set to oriented\_common or perpendicular\_common, this vector is the common direction vector used to orient all particles in the system.
+Only required if [billboard_type](#billboard_005ftype) is set to oriented\_common or perpendicular\_common, this vector is the common direction vector used to orient all particles in the system.
 
 format: common\_direction &lt;x&gt; &lt;y&gt; &lt;z&gt;<br> example: common\_direction 0 -1 0<br> default: 0 0 1<br>
 
@@ -199,7 +199,7 @@ format: common\_direction &lt;x&gt; &lt;y&gt; &lt;z&gt;<br> example: common\_dir
 
 ### common\_up\_vector
 
-Only required if [billboard\_type](#billboard_005ftype) is set to perpendicular\_self or perpendicular\_common, this vector is the common up vector used to orient all particles in the system.
+Only required if [billboard_type](#billboard_005ftype) is set to perpendicular\_self or perpendicular\_common, this vector is the common up vector used to orient all particles in the system.
 
 format: common\_up\_vector &lt;x&gt; &lt;y&gt; &lt;z&gt;<br> example: common\_up\_vector 0 1 0<br> default: 0 1 0<br>
 
@@ -260,24 +260,24 @@ This section describes the common attributes of all particle emitters. Specific 
 
 -   [angle](#angle)
 -   [colour](#colour)
--   [colour\_range\_start](#colour_005frange_005fstart)
--   [colour\_range\_end](#colour_005frange_005fend)
+-   [colour_range_start](#colour_005frange_005fstart)
+-   [colour_range_end](#colour_005frange_005fend)
 -   [direction](#direction)
--   [direction\_position\_reference](#direction_005fposition_005freference)
--   [emission\_rate](#emission_005frate)
+-   [direction_position_reference](#direction_005fposition_005freference)
+-   [emission_rate](#emission_005frate)
 -   [position](#position)
 -   [velocity](#velocity)
--   [velocity\_min](#velocity_005fmin)
--   [velocity\_max](#velocity_005fmax)
--   [time\_to\_live](#time_005fto_005flive)
--   [time\_to\_live\_min](#time_005fto_005flive_005fmin)
--   [time\_to\_live\_max](#time_005fto_005flive_005fmax)
+-   [velocity_min](#velocity_005fmin)
+-   [velocity_max](#velocity_005fmax)
+-   [time_to_live](#time_005fto_005flive)
+-   [time_to_live_min](#time_005fto_005flive_005fmin)
+-   [time_to_live_max](#time_005fto_005flive_005fmax)
 -   [duration](#duration)
--   [duration\_min](#duration_005fmin)
--   [duration\_max](#duration_005fmax)
--   [repeat\_delay](#repeat_005fdelay)
--   [repeat\_delay\_min](#repeat_005fdelay_005fmin)
--   [repeat\_delay\_max](#repeat_005fdelay_005fmax)
+-   [duration_min](#duration_005fmin)
+-   [duration_max](#duration_005fmax)
+-   [repeat_delay](#repeat_005fdelay)
+-   [repeat_delay_min](#repeat_005fdelay_005fmin)
+-   [repeat_delay_max](#repeat_005fdelay_005fmax)
 
 <a name="angle"></a><a name="angle-1"></a>
 
@@ -371,7 +371,7 @@ format: as time\_to\_live<br> example:<br>     time\_to\_live\_min 2<br>  �
 
 ## duration
 
-Sets the number of seconds the emitter is active. The emitter can be started again, see [repeat\_delay](#repeat_005fdelay).
+Sets the number of seconds the emitter is active. The emitter can be started again, see [repeat_delay](#repeat_005fdelay).
 See also the duration\_min and duration\_max attributes which let you set a duration range instead of a fixed one.
 
 format: duration &lt;seconds&gt;<br> example:<br>     duration 2.5<br> default: 0<br> <br>
@@ -433,20 +433,20 @@ emitter Point
 
 @copybrief Ogre::BoxEmitter
 
-It’s extra attributes are:
+Its extra attributes are:
 
 <dl compact="compact">
 <dt>width</dt> <dd>
 
-Sets the width of the box (this is the size of the box along it’s local X axis, which is dependent on the ’direction’ attribute which forms the box’s local Z).<br> format: width &lt;units&gt;<br> example: width 250<br> default: 100<br>
+Sets the width of the box (this is the size of the box along its local X axis, which is dependent on the ’direction’ attribute which forms the box’s local Z).<br> format: width &lt;units&gt;<br> example: width 250<br> default: 100<br>
 
 </dd> <dt>height</dt> <dd>
 
-Sets the height of the box (this is the size of the box along it’s local Y axis, which is dependent on the ’direction’ attribute which forms the box’s local Z).<br> format: height &lt;units&gt;<br> example: height 250<br> default: 100<br>
+Sets the height of the box (this is the size of the box along its local Y axis, which is dependent on the ’direction’ attribute which forms the box’s local Z).<br> format: height &lt;units&gt;<br> example: height 250<br> default: 100<br>
 
 </dd> <dt>depth</dt> <dd>
 
-Sets the depth of the box (this is the size of the box along it’s local Z axis, which is the same as the ’direction’ attribute).<br> format: depth &lt;units&gt;<br> example: depth 250<br> default: 100<br>
+Sets the depth of the box (this is the size of the box along its local Z axis, which is the same as the ’direction’ attribute).<br> format: depth &lt;units&gt;<br> example: depth 250<br> default: 100<br>
 
 </dd> </dl> <br>
 
@@ -463,7 +463,7 @@ emitter Box
 
 @copybrief Ogre::CylinderEmitter
 
-This emitter has exactly the same parameters as the [Box Emitter](#Box-Emitter) so there are no additional parameters to consider here - the width and height determine the shape of the cylinder along it’s axis (if they are different it is an ellipsoid cylinder), the depth determines the length of the cylinder.
+This emitter has exactly the same parameters as the [Box Emitter](#Box-Emitter) so there are no additional parameters to consider here - the width and height determine the shape of the cylinder along its axis (if they are different it is an ellipsoid cylinder), the depth determines the length of the cylinder.
 
 ## Ellipsoid Emitter {#Ellipsoid-Emitter}
 
@@ -532,7 +532,7 @@ Ogre comes preconfigured with a few particle affectors. New ones can be added by
 
 @copybrief Ogre::LinearForceAffector
 
-It’s extra attributes are:
+Its extra attributes are:
 
 <dl compact="compact">
 <dt>force\_vector</dt> <dd>
@@ -567,7 +567,7 @@ affector LinearForce
 
 @copybrief Ogre::ColourFaderAffector
 
-It’s extra attributes are:
+Its extra attributes are:
 
 <dl compact="compact">
 <dt>red</dt> <dd>
@@ -653,7 +653,7 @@ affector ColourFader2
 
 @copybrief Ogre::ScaleAffector
 
-It’s extra attributes are:
+Its extra attributes are:
 
 
 @par rate
@@ -678,7 +678,7 @@ affector Scaler
 
 @copybrief Ogre::RotationAffector
 
-It’s extra attributes are:
+Its extra attributes are:
 
 <dl compact="compact">
 <dt>rotation\_speed\_range\_start</dt> <dd>
@@ -712,7 +712,7 @@ affector Rotator
 
 Similar to the ColourFader and ColourFader2 Affectors, this affector modifies the colour of particles in flight, except it has a variable number of defined stages. It swaps the particle colour for several stages in the life of a particle and interpolates between them.
 
-It’s extra attributes are:
+Its extra attributes are:
 
 <dl compact="compact">
 <dt>time0</dt> <dd>

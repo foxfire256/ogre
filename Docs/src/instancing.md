@@ -285,7 +285,7 @@ Normally, Ogre first updates all instances' position, then their AABBs;
 and while at it, computes the AABB for each batch that encloses all of its instances.
 
 When frustum culling, we first cull the batches, then we cull their instances[^9] (that are inside those culled batches).
-**This is the typical hierachial culling optimization**.
+**This is the typical hierarchical culling optimization**.
 We then upload the instances transforms to the GPU.
 
 After moving many instances around the whole world, they will make the batch' enclosing AABB bigger and bigger.
@@ -320,7 +320,7 @@ Do it sparingly and profile the optimal frequency of calling.
 @par Q: My mesh doesn't show up.
 A: Verify you're using the right material, the vertex shader is set correctly, and it matches the instancing technique being used.
 
-@par Q: My animation plays quite differently than when it is an Entity, or previewed in [Ogre Mesh Viewer](https://github.com/OGRECave/ogre-meshviewer).
+@par Q: My animation plays quite differently than when it is an Entity, or previewed in Ogre Mesh Viewer.
 A: Your rig animation must be using more than one weight per bone.
 You need to add support for it in the vertex shader, and make sure you didn't create the instance manager with the flags Ogre::IM_USEONEWEIGHT or Ogre::IM_FORCEONEWEIGHT.
 

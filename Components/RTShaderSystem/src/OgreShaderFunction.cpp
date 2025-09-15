@@ -30,7 +30,7 @@ THE SOFTWARE.
 namespace Ogre {
 namespace RTShader {
 
-static GpuConstantType typeFromContent(Parameter::Content content)
+static GpuConstantType typeFromContent(int content)
 {
     switch (content)
     {
@@ -66,13 +66,15 @@ static GpuConstantType typeFromContent(Parameter::Content content)
         return GCT_FLOAT1;
     case Parameter::SPC_FRONT_FACING:
         return GCT_FLOAT1;
+    case Parameter::SPC_LAYER:
+        return GCT_UINT1;
     default:
         OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "cannot derive type from content");
         break;
     }
 }
 
-static Parameter::Semantic semanticFromContent(Parameter::Content content, bool isVSOut = false)
+static Parameter::Semantic semanticFromContent(int content, bool isVSOut = false)
 {
     switch (content)
     {
@@ -91,6 +93,8 @@ static Parameter::Semantic semanticFromContent(Parameter::Content content, bool 
         return Parameter::SPS_BINORMAL;
     case Parameter::SPC_FRONT_FACING:
         return Parameter::SPS_FRONT_FACING;
+    case Parameter::SPC_LAYER:
+        return Parameter::SPS_LAYER;
     case Parameter::SPC_TANGENT_OBJECT_SPACE:
         if(!isVSOut) return Parameter::SPS_TANGENT;
         OGRE_FALLTHROUGH;
@@ -109,7 +113,7 @@ static Parameter::Semantic semanticFromContent(Parameter::Content content, bool 
 }
 
 /// fixed index for texcoords, next free semantic slot else
-static int indexFromContent(Parameter::Content content)
+static int indexFromContent(int content)
 {
     int c = int(content);
     if(c < Parameter::SPC_TEXTURE_COORDINATE0 || c > Parameter::SPC_TEXTURE_COORDINATE7)
@@ -215,6 +219,9 @@ static String getParameterName(const char* prefix, Parameter::Semantic semantic,
     case Parameter::SPS_FRONT_FACING:
         name = "FrontFacing";
         break;
+    case Parameter::SPS_LAYER:
+        name = "Layer";
+        break;
     case Parameter::SPS_UNKNOWN:
         name = "Param";
         break;
@@ -225,7 +232,7 @@ static String getParameterName(const char* prefix, Parameter::Semantic semantic,
 //-----------------------------------------------------------------------------
 ParameterPtr Function::resolveInputParameter(Parameter::Semantic semantic,
                                         int index,
-                                        const Parameter::Content content,
+                                        int content,
                                         GpuConstantType type)
 {
     if(type == GCT_UNKNOWN)
@@ -286,7 +293,7 @@ ParameterPtr Function::resolveInputParameter(Parameter::Semantic semantic,
 //-----------------------------------------------------------------------------
 ParameterPtr Function::resolveOutputParameter(Parameter::Semantic semantic,
                                             int index,
-                                            Parameter::Content content,
+                                            int content,
                                             GpuConstantType type)
 {
     if(type == GCT_UNKNOWN)
@@ -341,6 +348,7 @@ ParameterPtr Function::resolveOutputParameter(Parameter::Semantic semantic,
     case Parameter::SPS_TEXTURE_COORDINATES:
     case Parameter::SPS_COLOR:
     case Parameter::SPS_POSITION:
+    case Parameter::SPS_LAYER:
         param = std::make_shared<Parameter>(type, getParameterName(prefix, semantic, index), semantic, index,
                                             content);
         break;
@@ -400,7 +408,7 @@ ParameterPtr Function::resolveLocalStructParameter(const String& type, const Str
 }
 
 //-----------------------------------------------------------------------------
-ParameterPtr Function::resolveLocalParameter(const Parameter::Content content, GpuConstantType type)
+ParameterPtr Function::resolveLocalParameter(int content, GpuConstantType type)
 {
     ParameterPtr param;
 
@@ -534,7 +542,7 @@ ParameterPtr Function::_getParameterBySemantic(const ShaderParameterList& parame
 }
 
 //-----------------------------------------------------------------------------
-ParameterPtr Function::_getParameterByContent(const ShaderParameterList& parameterList, const Parameter::Content content, GpuConstantType type)
+ParameterPtr Function::_getParameterByContent(const ShaderParameterList& parameterList, int content, GpuConstantType type)
 {
     if(type == GCT_UNKNOWN)
         type = typeFromContent(content);

@@ -30,7 +30,6 @@ THE SOFTWARE.
 #include "OgreException.h"
 #include "OgreLogManager.h"
 #include "OgreStringConverter.h"
-#include "OgreViewport.h"
 
 #include "OgreX11EGLSupport.h"
 #include "OgreX11EGLWindow.h"
@@ -93,6 +92,8 @@ namespace Ogre {
         {
             NameValuePairList::const_iterator opt;
             NameValuePairList::const_iterator end = miscParams->end();
+
+            OgreAssert(miscParams->find("externalWlDisplay") == end, "Recompile with OGRE_USE_WAYLAND=ON");
 
             if ((opt = miscParams->find("parentWindowHandle")) != end ||
                 (opt = miscParams->find("externalWindowHandle")) != end)
@@ -185,11 +186,7 @@ namespace Ogre {
                 XFlush(mGLSupport->getNativeDisplay());
             }
 
-            mWidth = width;
-            mHeight = height;
-
-            for (auto & it : mViewportList)
-                it.second->_updateDimensions();
+            RenderWindow::resize(width, height);
         }
     }
 

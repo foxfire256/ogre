@@ -74,6 +74,9 @@ static void APIENTRY GLDebugCallback(GLenum source,
                                      const GLchar* message,
                                      const GLvoid* userParam)
 {
+    if(source == GL_DEBUG_SOURCE_THIRD_PARTY && id == 0643)
+        return; // ignore our own messages
+
     const char *debSource = "", *debType = "", *debSev = "";
 
     auto lml = Ogre::LML_NORMAL;
@@ -139,8 +142,6 @@ namespace Ogre {
           mHardwareBufferManager(0),
           mActiveTextureUnit(0)
     {
-        size_t i;
-
         LogManager::getSingleton().logMessage(getName() + " created.");
 
         // Get our GLSupport
@@ -148,12 +149,6 @@ namespace Ogre {
         glsupport = mGLSupport;
 
         initConfigOptions();
-
-        for (i = 0; i < OGRE_MAX_TEXTURE_LAYERS; i++)
-        {
-            // Dummy value
-            mTextureTypes[i] = 0;
-        }
 
         mActiveRenderTarget = 0;
         mCurrentContext = 0;
@@ -418,6 +413,11 @@ namespace Ogre {
             // OGRE_CHECK_GL_ERROR(glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &workgroupInvocations));
         }
 
+        if (checkExtension("GL_NV_mesh_shader"))
+        {
+            rsc->setCapability(RSC_MESH_PROGRAM);
+        }
+
         if (hasMinGLVersion(4, 1) || checkExtension("GL_ARB_get_program_binary"))
         {
             GLint formats = 0;
@@ -428,6 +428,7 @@ namespace Ogre {
         }
 
         rsc->setCapability(RSC_VERTEX_FORMAT_INT_10_10_10_2);
+        rsc->setCapability(RSC_VERTEX_FORMAT_16X3);
         rsc->setCapability(RSC_VERTEX_BUFFER_INSTANCE_DATA);
 
         // Check for Float textures
@@ -454,6 +455,9 @@ namespace Ogre {
 
         if( hasMinGLVersion(4, 3) || checkExtension("GL_ARB_ES3_compatibility"))
             rsc->setCapability(RSC_PRIMITIVE_RESTART);
+
+        if( checkExtension("GL_ARB_shader_viewport_layer_array") )
+            rsc->setCapability(RSC_VP_RT_INDEX_ANY_SHADER);
 
         GLfloat lineWidth[2] = {1, 1};
         glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, lineWidth);
@@ -640,7 +644,7 @@ namespace Ogre {
     MultiRenderTarget* GL3PlusRenderSystem::createMultiRenderTarget(const String & name)
     {
         MultiRenderTarget* retval =
-            new GL3PlusFBOMultiRenderTarget(static_cast<GL3PlusFBOManager*>(mRTTManager), name);
+            new GL3PlusFBOMultiRenderTarget(name);
         attachRenderTarget(*retval);
         return retval;
     }
@@ -700,9 +704,7 @@ namespace Ogre {
 
             // Note used
             tex->touch();
-            mTextureTypes[stage] = tex->getGL3PlusTextureTarget();
-
-            mStateCacheManager->bindGLTexture( mTextureTypes[stage], tex->getGLID() );
+            mStateCacheManager->bindGLTexture(tex->getGL3PlusTextureTarget(), tex->getGLID());
         }
         else
         {
@@ -994,6 +996,16 @@ namespace Ogre {
             LogManager::getSingleton().logError("Failed to create shader program.");
         }
 
+        bool hasMeshShader = mCurrentShader[GPT_MESH_PROGRAM] != 0;
+        if(hasMeshShader)
+        {
+            for(auto it : op.vertexData->vertexBufferBinding->getBindings())
+            {
+                auto buf = it.second->_getImpl<GL3PlusHardwareBuffer>();
+                buf->setGLBufferBinding(it.first + 3, GL_SHADER_STORAGE_BUFFER);
+            }
+        }
+
         GLVertexArrayObject* vao =
             static_cast<GLVertexArrayObject*>(op.vertexData->vertexDeclaration);
         // Bind VAO (set of per-vertex attributes: position, normal, etc.).
@@ -1100,6 +1112,14 @@ namespace Ogre {
                 //OGRE_CHECK_GL_ERROR(glDrawArrays(GL_PATCHES, 0, primCount));
                 //                OGRE_CHECK_GL_ERROR(glDrawArraysInstanced(GL_PATCHES, 0, primCount, 1));
             }
+        }
+        else if (hasMeshShader)
+        {
+            OgreAssert(op.indexData, "indexData required for mesh shader");
+
+            typedef void (APIENTRYP PFNGLDRAWMESHTASKSNVPROC) (GLuint first, GLuint count);
+            auto glDrawMeshTasksNV = (PFNGLDRAWMESHTASKSNVPROC)mGLSupport->getProcAddress("glDrawMeshTasksNV");
+            OGRE_CHECK_GL_ERROR(glDrawMeshTasksNV(0, op.indexData->indexCount));
         }
         else if (op.useIndexes)
         {
@@ -1485,7 +1505,10 @@ namespace Ogre {
                main frame buffer.
             */
             if(auto fbo = gltarget->getFBO())
+            {
+                fbo->determineFBOBufferSharingAllowed(*target);
                 fbo->bind(true);
+            }
             else
                 _getStateCacheManager()->bindGLFrameBuffer( GL_FRAMEBUFFER, 0 );
 
@@ -1618,18 +1641,24 @@ namespace Ogre {
             params->_updateSharedParams();
         }
 
+        auto paramsSize = params->getConstantList().size();
+        if (paramsSize && getCapabilities()->hasCapability(RSC_SEPARATE_SHADER_OBJECTS) &&
+            !params->hasLogicalIndexedParameters())
+        {
+            auto& ubo = updateDefaultUniformBuffer(gptype, params->getConstantList());
+
+            int binding = gptype == GPT_COMPUTE_PROGRAM ? 0 : (int(gptype) % GPT_PIPELINE_COUNT);
+            static_cast<GL3PlusHardwareBuffer*>(ubo.get())->setGLBufferBinding(binding);
+        }
+
         // Pass on parameters from params to program object uniforms.
         program->updateUniforms(params, mask, gptype);
-
-        // FIXME This needs to be moved somewhere texture specific.
-        // Update image bindings for image load/store
-        // static_cast<GL3PlusTextureManager*>(mTextureManager)->bindImages();
     }
 
     void GL3PlusRenderSystem::beginProfileEvent( const String &eventName )
     {
         if (getCapabilities()->hasCapability(RSC_DEBUG))
-            OGRE_CHECK_GL_ERROR(glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 0, -1, eventName.c_str()));
+            OGRE_CHECK_GL_ERROR(glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 0643, -1, eventName.c_str()));
     }
 
 

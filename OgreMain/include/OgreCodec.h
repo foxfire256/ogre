@@ -45,9 +45,9 @@ namespace Ogre {
 
     /** Abstract class that defines a 'codec'.
 
-            A codec class works like a two-way filter for data - data entered on
-            one end (the decode end) gets processed and transformed into easily
-            usable data while data passed the other way around codes it back.
+        A codec class works like a two-way filter for data - data entered on
+        one end (the decode end) gets processed and transformed into easily
+        usable data while data passed the other way around codes it back.
         @par
             The codec concept is a pretty generic one - you can easily understand
             how it can be used for images, sounds, archives, even compressed data.
@@ -134,6 +134,8 @@ namespace Ogre {
         @return A blank string if the magic number was unknown, or a file extension.
         */
         virtual String magicNumberToFileExt(const char *magicNumberPtr, size_t maxbytes) const = 0;
+
+        virtual bool setParameter(const String& name, const String& value) { return false; }
     };
     /** @} */
     /** @} */

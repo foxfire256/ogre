@@ -28,12 +28,10 @@ THE SOFTWARE.
 #include "OgreStableHeaders.h"
 #include "OgreCompositor.h"
 #include "OgreCompositorChain.h"
-#include "OgreCompositionTechnique.h"
 #include "OgreCompositorInstance.h"
 #include "OgreCompositionTargetPass.h"
 #include "OgreCompositionPass.h"
 #include "OgreCompositorManager.h"
-#include "OgreRenderTarget.h"
 
 namespace Ogre {
 CompositorChain::CompositorChain(Viewport *vp):

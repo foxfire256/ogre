@@ -110,6 +110,70 @@ TBuiltInResource DefaultTBuiltInResource = {
     /* .maxDualSourceDrawBuffersEXT =  1,*/
     /* .limits = memset below*/
     };
+
+    /// punch through the private glslang API to get layoutLocation
+    struct TQualifier
+    {
+        // DANGER!! this must be kept in sync with the layout of glslang::TQualifier
+        const char*         semanticName;
+        int  storage      : 6;
+        int  builtIn      : 9;
+        int  declaredBuiltIn : 9;
+        int  precision    : 3;
+        bool invariant    : 1;
+        bool centroid     : 1;
+        bool smooth       : 1;
+        bool flat         : 1;
+        bool specConstant : 1;
+        bool nonUniform   : 1;
+        bool explicitOffset   : 1;
+        bool defaultBlock : 1;
+        bool noContraction: 1;
+        bool nopersp      : 1;
+        bool explicitInterp : 1;
+        bool pervertexNV  : 1;
+        bool perPrimitiveNV : 1;
+        bool perViewNV : 1;
+        bool perTaskNV : 1;
+        bool patch        : 1;
+        bool sample       : 1;
+        bool restrict     : 1;
+        bool readonly     : 1;
+        bool writeonly    : 1;
+        bool coherent     : 1;
+        bool volatil      : 1;
+        bool devicecoherent : 1;
+        bool queuefamilycoherent : 1;
+        bool workgroupcoherent : 1;
+        bool subgroupcoherent  : 1;
+        bool shadercallcoherent : 1;
+        bool nonprivate   : 1;
+        bool nullInit : 1;
+        bool spirvByReference : 1;
+        bool spirvLiteral : 1;
+
+        int layoutMatrix  : 3;
+        int layoutPacking : 4;
+        int layoutOffset;
+        int layoutAlign;
+
+        unsigned int layoutLocation             : 12;
+    };
+    struct TType
+    {
+        virtual ~TType() {}
+
+        // DANGER!! this must be kept in sync with the layout of glslang::TType
+        int basicType        : 8;
+        int vectorSize       : 4;
+        int matrixCols       : 4;
+        int matrixRows       : 4;
+        bool vector1         : 1;
+        bool coopmat         : 1;
+        TQualifier qualifier;
+
+        const TQualifier& getQualifier() const { return qualifier; }
+    };
 }
 
 namespace Ogre
@@ -154,17 +218,19 @@ static GpuConstantType mapToGCT(int gltype)
     case GL_UNSIGNED_INT_SAMPLER_3D:
         return GCT_SAMPLER3D;
     case GL_SAMPLER_CUBE:
-    case GL_SAMPLER_CUBE_SHADOW:
     case GL_INT_SAMPLER_CUBE:
     case GL_UNSIGNED_INT_SAMPLER_CUBE:
         return GCT_SAMPLERCUBE;
+    case GL_SAMPLER_CUBE_SHADOW:
+        return GCT_SAMPLERCUBESHADOW;
     case GL_SAMPLER_1D_SHADOW:
     case GL_SAMPLER_1D_ARRAY_SHADOW:
         return GCT_SAMPLER1DSHADOW;
     case GL_SAMPLER_2D_SHADOW:
     case GL_SAMPLER_2D_RECT_SHADOW:
-    case GL_SAMPLER_2D_ARRAY_SHADOW:
         return GCT_SAMPLER2DSHADOW;
+    case GL_SAMPLER_2D_ARRAY_SHADOW:
+        return GCT_SAMPLER2DARRAYSHADOW;
     case GL_INT:
         return GCT_INT1;
     case GL_INT_VEC2:
@@ -253,6 +319,8 @@ static EShLanguage getShLanguage(GpuProgramType type)
     case GPT_HULL_PROGRAM:      return EShLangTessControl;
     case GPT_DOMAIN_PROGRAM:    return EShLangTessEvaluation;
     case GPT_COMPUTE_PROGRAM:   return EShLangCompute;
+    case GPT_MESH_PROGRAM:      return EShLangMeshNV;
+    case GPT_TASK_PROGRAM:      return EShLangTaskNV;
         // clang-format on
     }
 
@@ -267,6 +335,13 @@ GLSLangProgram::GLSLangProgram(ResourceManager* creator, const String& name, Res
     {
         setupBaseParamDictionary();
         memset(&DefaultTBuiltInResource.limits, 1, sizeof(TLimits));
+
+        if(sizeof(TBuiltInResource) == 420) // replace with build_info.h, when it is universally available
+        {
+            // copy VK_NV_mesh_shader limits to VK_EXT_mesh_shader
+            memcpy(&DefaultTBuiltInResource.maxMeshViewCountNV + 1, &DefaultTBuiltInResource.maxMeshOutputVerticesNV,
+                   9 * sizeof(int));
+        }
     }
 }
 
@@ -281,7 +356,7 @@ const String& GLSLangProgram::getLanguage(void) const
 }
 
 bool GLSLangProgram::isSupported() const
-{   bool ret = !mCompileError;
+{   bool ret = !mCompileError && isRequiredCapabilitiesSupported();
     if(mSyntaxCode != "glslang") // in case this is provided by user
         ret = ret && GpuProgramManager::isSyntaxSupported(mSyntaxCode);
     return ret;
@@ -332,6 +407,12 @@ void GLSLangProgram::prepareImpl()
     }
     shader.setPreamble(preamble.c_str());
 
+    size_t versionPos = mSource.find("OGRE_NATIVE_GLSL_VERSION_DIRECTIVE");
+    if(versionPos != String::npos)
+    {
+        mSource.replace(versionPos, 34, "#version 460\n");
+    }
+
     mSource = _resolveIncludes(mSource, this, mFilename, true);
     const char* source = mSource.c_str();
     const char* name = mFilename.empty() ? NULL : mFilename.c_str();
@@ -342,7 +423,15 @@ void GLSLangProgram::prepareImpl()
     if(mSyntaxCode == "gl_spirv")
         shader.setEnvClient(glslang::EShClientOpenGL, glslang::EShTargetOpenGL_450);
     else if(mSyntaxCode == "spirv")
+    {
         shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
+
+        if(mType == GPT_MESH_PROGRAM || mType == GPT_TASK_PROGRAM)
+        {
+            shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_2);
+            shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_4);
+        }
+    }
 
     // minimal version is 430 for explicit uniform location, but we use latest to get all features
     if (!shader.parse(&DefaultTBuiltInResource, 460, false, EShMsgSpvRules))
@@ -375,8 +464,8 @@ void GLSLangProgram::prepareImpl()
     int blockIdx = -1;
     for(int i = 0; i < nuniforms; i++)
     {
-        auto utype = program.getUniformTType(i);
-        if(utype->isOpaque())
+        auto constType = mapToGCT(program.getUniformType(i));
+        if(GpuConstantDefinition::isSampler(constType) || constType == GCT_UNKNOWN)
             continue;
 
         blockIdx = program.getUniformBlockIndex(i);
@@ -388,16 +477,20 @@ void GLSLangProgram::prepareImpl()
             auto uboName = String(program.getUniformBlockName(blockIdx));
             if(uboName != "OgreUniforms")
             {
+                if(mType == GPT_MESH_PROGRAM || mType == GPT_TASK_PROGRAM)
+                    continue; // SSBOs in mesh shaders are used for vertex buffers
+
                 GpuProgramManager::getSingleton().getSharedParameters(uboName);
                 // TODO: there is no public API to set the binding point and create the correct buffer yet
             }
         }
 
+        auto utype = (const TType*)program.getUniformTType(i);
         GpuConstantDefinition def;
         def.logicalIndex = isUBO ? uoffset : utype->getQualifier().layoutLocation;
         def.arraySize = program.getUniformArraySize(i);
         def.physicalIndex = isUBO ? uoffset : mConstantDefs->bufferSize * 4;
-        def.constType = mapToGCT(program.getUniformType(i));
+        def.constType = constType;
         bool doPadding = isUBO && GpuConstantDefinition::getElementSize(def.constType, false) > 1;
         def.elementSize = GpuConstantDefinition::getElementSize(def.constType, doPadding);
 

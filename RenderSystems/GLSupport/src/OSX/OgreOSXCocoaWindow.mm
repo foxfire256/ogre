@@ -37,7 +37,6 @@ THE SOFTWARE.
 #import <AppKit/NSScreen.h>
 #import <AppKit/NSOpenGLView.h>
 #import <QuartzCore/CVDisplayLink.h>
-#import "OgreViewport.h"
 #import <iomanip>
 
 @implementation OgreGLWindow
@@ -324,8 +323,6 @@ namespace Ogre {
         mVisible = true;
         mClosed = false;
         mName = [windowTitle cStringUsingEncoding:NSUTF8StringEncoding];
-        mWidth = _getPixelFromPoint(widthPt);
-        mHeight = _getPixelFromPoint(heightPt);
         mFSAA = fsaa_samples;
 
         if(!externalWindowHandle)
@@ -358,8 +355,8 @@ namespace Ogre {
             }
 
             NSRect b = [mView bounds];
-            mWidth = _getPixelFromPoint((int)b.size.width);
-            mHeight = _getPixelFromPoint((int)b.size.height);
+            widthPt = (unsigned int)b.size.width;
+            heightPt = (unsigned int)b.size.height;
 
             mWindow = [mView window];
             mIsExternal = true;
@@ -378,6 +375,13 @@ namespace Ogre {
         if([mGLContext view] != mView)
             [mGLContext setView:mView];
         [mGLContext makeCurrentContext];
+
+        mContentScalingFactor =
+            ([mView respondsToSelector:@selector(wantsBestResolutionOpenGLSurface)] && [(id)mView wantsBestResolutionOpenGLSurface]) ?
+            (mView.window.screen ?: [NSScreen mainScreen]).backingScaleFactor : 1.0f;
+
+        mWidth = _getPixelFromPoint(widthPt);
+        mHeight = _getPixelFromPoint(heightPt);
 
 #if OGRE_DEBUG_MODE
         // Crash on functions that have been removed from the API
@@ -401,24 +405,6 @@ namespace Ogre {
         << " with backing store size " << mWidth << " x " << mHeight
         << " using content scaling factor " << std::fixed << std::setprecision(1) << getViewPointToPixelScale();
         LogManager::getSingleton().logMessage(ss.str());
-    }
-
-    unsigned int CocoaWindow::getWidth() const
-    {
-        // keep mWidth in sync with reality
-        OgreAssertDbg(mView == nil || int(mWidth) == _getPixelFromPoint([mView frame].size.width),
-                      "Window dimension mismatch. Did you call windowMovedOrResized?");
-
-        return mWidth;
-    }
-
-    unsigned int CocoaWindow::getHeight() const
-    {
-        // keep mHeight in sync with reality
-        OgreAssertDbg(mView == nil || int(mHeight) == _getPixelFromPoint([mView frame].size.height),
-                      "Window dimension mismatch. Did you call windowMovedOrResized?");
-
-        return mHeight;
     }
 
     void CocoaWindow::destroy(void)
@@ -526,8 +512,7 @@ namespace Ogre {
         if(mWidth == widthPx && mHeight == heightPx)
             return;
 
-        mWidth = widthPx;
-        mHeight = heightPx;
+        RenderWindow::resize(widthPx, heightPx);
 
         if(mIsExternal)
         {
@@ -558,10 +543,6 @@ namespace Ogre {
         }
         //make sure the context is current
         NSOpenGLContextGuard ctx_guard(mGLContext);
-        for (ViewportList::iterator it = mViewportList.begin(); it != mViewportList.end(); ++it)
-        {
-            (*it).second->_updateDimensions();
-        }
 		[mGLContext update];
     }
 
@@ -587,15 +568,12 @@ namespace Ogre {
         mLeft = _getPixelFromPoint((int)leftPt);
         mTop = _getPixelFromPoint((int)topPt);
 
+        RenderWindow::resize(mWidth, mHeight);
+
         mWindowOriginPt = NSMakePoint(leftPt, topPt);
 
         //make sure the context is current
         NSOpenGLContextGuard ctx_guard(mGLContext);
-
-        for (ViewportList::iterator it = mViewportList.begin(); it != mViewportList.end(); ++it)
-        {
-            (*it).second->_updateDimensions();
-        }
 		[mGLContext update];
     }
 

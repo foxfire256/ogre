@@ -86,7 +86,6 @@ THE SOFTWARE.
 #include "OgreShaderProgramWriterManager.h"
 #include "OgreShaderCGProgramWriter.h"
 #include "OgreShaderGLSLProgramWriter.h"
-#include "OgreShaderGLSLESProgramWriter.h"
 
 // Fixed Function Library: Transform functions
 #define FFP_LIB_TRANSFORM                           "FFPLib_Transform"
@@ -117,7 +116,7 @@ class LayeredBlendingFactory : public SubRenderStateFactory
 {
 public:
     const String& getType() const override;
-    SubRenderState* createInstance(ScriptCompiler* compiler, PropertyAbstractNode* prop, TextureUnitState* texState,
+    SubRenderState* createInstance(const ScriptProperty& prop, TextureUnitState* texState,
                                    SGScriptTranslator* translator) override;
     void writeInstance(MaterialSerializer* ser, SubRenderState* subRenderState, const TextureUnitState* srcTextureUnit,
                        const TextureUnitState* dstTextureUnit) override;
@@ -131,8 +130,7 @@ class FFPTexturingFactory : public SubRenderStateFactory
 {
 public:
     const String& getType() const override;
-    SubRenderState* createInstance(ScriptCompiler* compiler, PropertyAbstractNode* prop, Pass* pass,
-                                   SGScriptTranslator* translator) override;
+    SubRenderState* createInstance(const ScriptProperty& prop, Pass* pass, SGScriptTranslator* translator) override;
     void writeInstance(MaterialSerializer* ser, SubRenderState* subRenderState, Pass* srcPass, Pass* dstPass) override;
 protected:
     SubRenderState* createInstanceImpl() override;

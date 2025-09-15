@@ -1780,9 +1780,6 @@ namespace Ogre
         Image mCpuTerrainNormalMap;
 
         static NameGenerator msBlendTextureGenerator;
-        static NameGenerator msNormalMapNameGenerator;
-        static NameGenerator msLightmapNameGenerator;
-        static NameGenerator msCompositeMapNameGenerator;
 
         bool mLodMorphRequired;
         bool mNormalMapRequired;
@@ -1870,7 +1867,7 @@ namespace Ogre
         /** method - the default size of 'skirts' used to hide terrain cracks
         (default 10)
 
-            Changing this value only applies to Terrain instances loaded / reloaded afterwards.
+        @note Changing this value only applies to Terrain instances loaded / reloaded afterwards.
         */
         void setSkirtSize(Real skirtSz) { mSkirtSize = skirtSz; }
         /// Get the shadow map light direction to use (world space)
