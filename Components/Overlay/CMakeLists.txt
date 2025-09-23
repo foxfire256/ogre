@@ -18,7 +18,7 @@ list(APPEND HEADER_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/include/OgreOverlay.i)
 file(GLOB SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
-find_package(SDL2)
+find_package(SDL3)
 
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   set(IMGUI_DIR "${PROJECT_BINARY_DIR}/imgui-1.91.9b" CACHE PATH "")
@@ -36,14 +36,14 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp)
+    ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp)
   if(FREETYPE_FOUND)
     set(IMGUI_ENABLE_FREETYPE TRUE)
     list(APPEND SOURCE_FILES ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp)
   endif()
-  if(SDL2_FOUND)
+  if(SDL3_FOUND)
     list(APPEND SOURCE_FILES
-      ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp)
+      ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp)
   endif()
 else()
     list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/OgreImGuiOverlay.cpp")
@@ -67,10 +67,6 @@ if(FREETYPE_FOUND)
 elseif(UNIX)
   set_source_files_properties(src/OgreFont.cpp PROPERTIES
     COMPILE_FLAGS "-Wno-cast-qual -Wno-unused-function")
-endif()
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-	set(MACOS TRUE)
 endif()
 
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
@@ -107,13 +103,9 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
     ${IMGUI_DIR}/imconfig.h)
   if(SDL2_FOUND)
     list(APPEND HEADER_FILES
-      ${IMGUI_DIR}/backends/imgui_impl_sdl2.h)
-	if(MACOS)
-	  target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2)
-	else(MACOS)
-	  target_link_libraries(OgreOverlay PRIVATE SDL2::SDL2main SDL2::SDL2)
-	endif(MACOS)
-    target_include_directories(OgreOverlay PRIVATE ${SDL2_INCLUDE_DIRS})
+      ${IMGUI_DIR}/backends/imgui_impl_sdl3.h)
+	target_link_libraries(OgreOverlay PRIVATE SDL3::SDL3)
+    target_include_directories(OgreOverlay PRIVATE ${SDL3_INCLUDE_DIRS})
   endif()
 endif()
 
