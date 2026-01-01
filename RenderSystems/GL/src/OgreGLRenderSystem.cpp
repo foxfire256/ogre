@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 
 #include "OgreGLRenderSystem.h"
+#include "OgreGLFrameBufferObject.h"
 #include "OgreGLNativeSupport.h"
 #include "OgreLogManager.h"
 #include "OgreStringConverter.h"
@@ -57,7 +58,7 @@ THE SOFTWARE.
 #include "OgreGLPixelFormat.h"
 
 #include "OgreGLSLProgramCommon.h"
-#include "OgreGLFBOMultiRenderTarget.h"
+#include "OgreGLMultiRenderTarget.h"
 
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
 extern "C" void glFlushRenderAPPLE();
@@ -1025,20 +1026,6 @@ namespace Ogre {
                 mCurrentContext->setInitialized();
         }
 
-        if( win->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH )
-        {
-            //Unlike D3D9, OGL doesn't allow sharing the main depth buffer, so keep them separate.
-            //Only Copy does, but Copy means only one depth buffer...
-            GLContext *windowContext = dynamic_cast<GLRenderTarget*>(win)->getContext();;
-
-            auto depthBuffer =
-                new GLDepthBufferCommon(DepthBuffer::POOL_DEFAULT, this, windowContext, 0, 0, win, true);
-
-            mDepthBufferPool[depthBuffer->getPoolId()].push_back( depthBuffer );
-
-            win->attachDepthBuffer( depthBuffer );
-        }
-
         return win;
     }
     //---------------------------------------------------------------------
@@ -1065,8 +1052,8 @@ namespace Ogre {
                                                     fbo->getHeight(), fbo->getFSAA() );
             }
 
-            return new GLDepthBufferCommon(0, this, mCurrentContext, depthBuffer, stencilBuffer,
-                                           renderTarget, false);
+            return new GLDepthBufferCommon(this, mCurrentContext, depthBuffer,
+                                           stencilBuffer, renderTarget, false);
         }
 
         return NULL;
@@ -1109,56 +1096,9 @@ namespace Ogre {
         if (!fboMgr)
             OGRE_EXCEPT(Exception::ERR_RENDERINGAPI_ERROR, "MultiRenderTarget is not supported");
 
-        MultiRenderTarget *retval = new GLFBOMultiRenderTarget(name);
+        MultiRenderTarget *retval = new GLMultiRenderTarget(name, new GLFrameBufferObject(0 /* no fsaa */));
         attachRenderTarget( *retval );
         return retval;
-    }
-
-    //-----------------------------------------------------------------------
-    void GLRenderSystem::destroyRenderWindow(const String& name)
-    {
-        // Find it to remove from list.
-        RenderTarget* pWin = detachRenderTarget(name);
-        OgreAssert(pWin, "unknown RenderWindow name");
-
-        GLContext *windowContext = dynamic_cast<GLRenderTarget*>(pWin)->getContext();
-    
-        //1 Window <-> 1 Context, should be always true
-        assert( windowContext );
-
-        bool bFound = false;
-        //Find the depth buffer from this window and remove it.
-        DepthBufferMap::iterator itMap = mDepthBufferPool.begin();
-        DepthBufferMap::iterator enMap = mDepthBufferPool.end();
-
-        while( itMap != enMap && !bFound )
-        {
-            DepthBufferVec::iterator itor = itMap->second.begin();
-            DepthBufferVec::iterator end  = itMap->second.end();
-
-            while( itor != end )
-            {
-                //A DepthBuffer with no depth & stencil pointers is a dummy one,
-                //look for the one that matches the same GL context
-                auto depthBuffer = static_cast<GLDepthBufferCommon*>(*itor);
-                GLContext *glContext = depthBuffer->getGLContext();
-
-                if( glContext == windowContext &&
-                    (depthBuffer->getDepthBuffer() || depthBuffer->getStencilBuffer()) )
-                {
-                    bFound = true;
-
-                    delete *itor;
-                    itMap->second.erase( itor );
-                    break;
-                }
-                ++itor;
-            }
-
-            ++itMap;
-        }
-
-        delete pWin;
     }
 
     //---------------------------------------------------------------------
@@ -2697,6 +2637,10 @@ namespace Ogre {
 
     }
     //---------------------------------------------------------------------
+    void GLRenderSystem::bindRenderTarget(RenderTarget* target)
+    {
+        mRTTManager->bind(target);
+    }
     void GLRenderSystem::_setRenderTarget(RenderTarget *target)
     {
         // Unbind frame buffer object
@@ -2716,7 +2660,7 @@ namespace Ogre {
             //Check the FBO's depth buffer status
             auto depthBuffer = static_cast<GLDepthBufferCommon*>(target->getDepthBuffer());
 
-            if( target->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH &&
+            if( target->getDepthBufferPool() != RBP_NONE &&
                 (!depthBuffer || depthBuffer->getGLContext() != mCurrentContext ) )
             {
                 //Depth is automatically managed and there is no depth buffer attached to this RT
@@ -2724,8 +2668,7 @@ namespace Ogre {
                 setDepthBufferFor( target );
             }
 
-            // Bind frame buffer object
-            mRTTManager->bind(target);
+            bindRenderTarget(target);
 
             if (GLAD_GL_EXT_framebuffer_sRGB)
             {

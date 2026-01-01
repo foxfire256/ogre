@@ -311,7 +311,9 @@ namespace Ogre
 
             fireEvent("RenderSystemCapabilitiesCreated");
 
-            initialiseFromRenderSystemCapabilities( mCurrentCapabilities, 0 );
+            //DepthBuffer::DefaultDepthBufferFormat = PF_D32_FLOAT_X24_S8_UINT;
+            mMetalProgramFactory = new MetalProgramFactory( &mDevice );
+            HighLevelGpuProgramManager::getSingleton().addFactory( mMetalProgramFactory );
 
             mTextureManager = new MetalTextureManager( &mDevice );
             mHardwareBufferManager = new MetalHardwareBufferManager( &mDevice );
@@ -448,7 +450,7 @@ namespace Ogre
             }
         }
 
-        DepthBuffer *retVal = new MetalDepthBuffer( 0, this, renderTarget->getWidth(),
+        DepthBuffer *retVal = new MetalDepthBuffer( renderTarget->getDepthBufferPool(), this, renderTarget->getWidth(),
                                                     renderTarget->getHeight(),
                                                     renderTarget->getFSAA(),
                                                     depthFormat, false,
@@ -1095,10 +1097,10 @@ namespace Ogre
 
             MetalDepthBuffer *depthBuffer = static_cast<MetalDepthBuffer*>( target->getDepthBuffer() );
 
-            if( target->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH && !depthBuffer )
+            if (target->getDepthBufferPool() != RBP_NONE && !depthBuffer)
             {
                 // Depth is automatically managed and there is no depth buffer attached to this RT
-                setDepthBufferFor( target );
+                setDepthBufferFor(target);
             }
 
             depthBuffer = static_cast<MetalDepthBuffer*>( target->getDepthBuffer() );
@@ -1160,13 +1162,6 @@ namespace Ogre
     //-------------------------------------------------------------------------
     void MetalRenderSystem::markProfileEvent( const String &event )
     {
-    }
-    //-------------------------------------------------------------------------
-    void MetalRenderSystem::initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget* primary)
-    {
-        //DepthBuffer::DefaultDepthBufferFormat = PF_D32_FLOAT_X24_S8_UINT;
-        mMetalProgramFactory = new MetalProgramFactory( &mDevice );
-        HighLevelGpuProgramManager::getSingleton().addFactory( mMetalProgramFactory );
     }
     //-------------------------------------------------------------------------
     void MetalRenderSystem::setStencilState(const StencilState& state)

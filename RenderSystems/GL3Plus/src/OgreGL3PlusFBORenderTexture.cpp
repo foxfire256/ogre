@@ -31,66 +31,11 @@ Copyright (c) 2000-2014 Torus Knot Software Ltd
 #include "OgreGL3PlusPixelFormat.h"
 #include "OgreLogManager.h"
 #include "OgreGL3PlusHardwarePixelBuffer.h"
-#include "OgreGL3PlusFBOMultiRenderTarget.h"
 #include "OgreGL3PlusRenderSystem.h"
 #include "OgreGL3PlusStateCacheManager.h"
+#include "OgreGL3PlusFrameBufferObject.h"
 
 namespace Ogre {
-
-    GL3PlusFBORenderTexture::GL3PlusFBORenderTexture(
-        const String &name,
-        const GLSurfaceDesc &target, bool writeGamma, uint fsaa):
-        GLRenderTexture(name, target, writeGamma, fsaa),
-        mFB(fsaa)
-    {
-        // Bind target to surface 0 and initialise
-        mFB.bindSurface(0, target);
-
-        // Get attributes
-        mWidth = mFB.getWidth();
-        mHeight = mFB.getHeight();
-    }
-
-    void GL3PlusFBORenderTexture::getCustomAttribute(const String& name, void* pData)
-    {
-        if(name == GLRenderTexture::CustomAttributeString_FBO)
-        {
-            *static_cast<GL3PlusFrameBufferObject **>(pData) = &mFB;
-        }
-        else if(name == GLRenderTexture::CustomAttributeString_GLCONTEXT)
-        {
-            *static_cast<GLContext**>(pData) = getContext();
-        }
-        else if (name == "GL_FBOID")
-        {
-            *static_cast<GLuint*>(pData) = mFB.getGLFBOID();
-        }
-        else if (name == "GL_MULTISAMPLEFBOID")
-        {
-            *static_cast<GLuint*>(pData) = mFB.getGLMultisampleFBOID();
-        }
-    }
-
-    void GL3PlusFBORenderTexture::swapBuffers()
-    {
-        mFB.swapBuffers();
-    }
-
-    bool GL3PlusFBORenderTexture::attachDepthBuffer( DepthBuffer *depthBuffer )
-    {
-        bool result;
-        if( (result = GLRenderTexture::attachDepthBuffer( depthBuffer )) )
-            mFB.attachDepthBuffer( depthBuffer );
-
-        return result;
-    }
-
-    void GL3PlusFBORenderTexture::_detachDepthBuffer()
-    {
-        mFB.detachDepthBuffer();
-        GLRenderTexture::_detachDepthBuffer();
-    }
-
     // Size of probe texture
 #define PROBE_SIZE 16
 
@@ -451,21 +396,15 @@ namespace Ogre {
         *stencilFormat = requestDepthOnly ? 0 : stencilFormats[props.modes[bestmode].stencil];
     }
 
-    GL3PlusFBORenderTexture *GL3PlusFBOManager::createRenderTexture(const String &name,
-                                                                    const GLSurfaceDesc &target, bool writeGamma, uint fsaa)
+    GLFBORenderTexture* GL3PlusFBOManager::createRenderTexture(const String& name, const GLSurfaceDesc& target,
+                                                               bool writeGamma)
     {
-        GL3PlusFBORenderTexture *retval = new GL3PlusFBORenderTexture(name, target, writeGamma, fsaa);
-        return retval;
+        return new GLFBORenderTexture(name, target, writeGamma, new GL3PlusFrameBufferObject());
     }
 
-    GLSurfaceDesc GL3PlusFBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa)
+    GLHardwarePixelBufferCommon* GL3PlusFBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height,
+                                                                          uint fsaa)
     {
-        GLSurfaceDesc retval;
-        auto* rb = new GL3PlusRenderBuffer(format, width, height, fsaa);
-        retval.buffer = rb;
-        retval.zoffset = 0;
-        retval.numSamples = fsaa;
-        return retval;
+        return new GL3PlusRenderBuffer(format, width, height, fsaa);
     }
-
 }

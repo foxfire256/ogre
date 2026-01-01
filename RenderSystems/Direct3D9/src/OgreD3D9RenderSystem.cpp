@@ -1109,7 +1109,7 @@ namespace Ogre
 
             fireEvent("RenderSystemCapabilitiesCreated");
 
-            initialiseFromRenderSystemCapabilities(mCurrentCapabilities, renderWindow);
+            initialiseFromRenderSystemCapabilities(mCurrentCapabilities);
         }
 
         return rsc;
@@ -1337,7 +1337,7 @@ namespace Ogre
 
     }
     //-----------------------------------------------------------------------
-    void D3D9RenderSystem::initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget* primary)
+    void D3D9RenderSystem::initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget*)
     {
         for(const auto& lang : caps->getSupportedShaderProfiles())
         {
@@ -2542,7 +2542,7 @@ namespace Ogre
                         "D3D9RenderSystem::_createDepthBufferFor" );
         }
 
-        D3D9DepthBuffer *newDepthBuffer = OGRE_NEW D3D9DepthBuffer( DepthBuffer::POOL_DEFAULT, this,
+        D3D9DepthBuffer *newDepthBuffer = OGRE_NEW D3D9DepthBuffer( renderTarget->getDepthBufferPool(), this,
                                                 activeDevice, depthBufferSurface,
                                                 dsfmt, srfDesc.Width, srfDesc.Height,
                                                 srfDesc.MultiSampleType, srfDesc.MultiSampleQuality, false );
@@ -2701,7 +2701,7 @@ namespace Ogre
             IDirect3DDevice9* activeDevice = getActiveD3D9Device();
             D3D9DepthBuffer *depthBuffer = static_cast<D3D9DepthBuffer*>(target->getDepthBuffer());
 
-            if( target->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH &&
+            if( target->getDepthBufferPool() != RBP_NONE &&
                 (!depthBuffer || depthBuffer->getDeviceCreator() != activeDevice ) )
             {
                 //Depth is automatically managed and there is no depth buffer attached to this RT

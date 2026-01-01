@@ -27,67 +27,14 @@ THE SOFTWARE.
 */
 
 #include "OgreGLFBORenderTexture.h"
+#include "OgreGLFrameBufferObject.h"
 #include "OgreGLPixelFormat.h"
 #include "OgreLogManager.h"
 #include "OgreStringConverter.h"
 #include "OgreRoot.h"
 #include "OgreGLHardwarePixelBuffer.h"
-#include "OgreGLFBOMultiRenderTarget.h"
 
 namespace Ogre {
-
-//-----------------------------------------------------------------------------    
-    GLFBORenderTexture::GLFBORenderTexture(const String &name,
-        const GLSurfaceDesc &target, bool writeGamma, uint fsaa):
-        GLRenderTexture(name, target, writeGamma, fsaa),
-        mFB(fsaa)
-    {
-        // Bind target to surface 0 and initialise
-        mFB.bindSurface(0, target);
-        // Get attributes
-        mWidth = mFB.getWidth();
-        mHeight = mFB.getHeight();
-    }
-
-    void GLFBORenderTexture::getCustomAttribute(const String& name, void* pData)
-    {
-        if( name == GLRenderTexture::CustomAttributeString_FBO )
-        {
-            *static_cast<GLFrameBufferObject **>(pData) = &mFB;
-        }
-        else if(name == GLRenderTexture::CustomAttributeString_GLCONTEXT)
-        {
-            *static_cast<GLContext**>(pData) = mFB.getContext();
-        }
-        else if (name == "GL_FBOID")
-        {
-            *static_cast<GLuint*>(pData) = mFB.getGLFBOID();
-        }
-        else if (name == "GL_MULTISAMPLEFBOID")
-        {
-            *static_cast<GLuint*>(pData) = mFB.getGLMultisampleFBOID();
-        }
-    }
-
-    void GLFBORenderTexture::swapBuffers()
-    {
-        mFB.swapBuffers();
-    }
-    //-----------------------------------------------------------------------------
-    bool GLFBORenderTexture::attachDepthBuffer( DepthBuffer *depthBuffer )
-    {
-        bool result;
-        if( (result = GLRenderTexture::attachDepthBuffer( depthBuffer )) )
-            mFB.attachDepthBuffer( depthBuffer );
-
-        return result;
-    }
-    //-----------------------------------------------------------------------------
-    void GLFBORenderTexture::_detachDepthBuffer()
-    {
-        mFB.detachDepthBuffer();
-        GLRenderTexture::_detachDepthBuffer();
-    }
    
 /// Size of probe texture
 #define PROBE_SIZE 16
@@ -471,9 +418,10 @@ static const uchar depthBits[] =
     }
 
     GLFBORenderTexture *GLFBOManager::createRenderTexture(const String &name, 
-        const GLSurfaceDesc &target, bool writeGamma, uint fsaa)
+        const GLSurfaceDesc &target, bool writeGamma)
     {
-        GLFBORenderTexture *retval = new GLFBORenderTexture(name, target, writeGamma, fsaa);
+        GLFBORenderTexture* retval =
+            new GLFBORenderTexture(name, target, writeGamma, new GLFrameBufferObject(target.numSamples));
         return retval;
     }
     //---------------------------------------------------------------------
@@ -482,7 +430,6 @@ static const uchar depthBits[] =
         /// Check if the render target is in the rendertarget->FBO map
         if(auto fbo = dynamic_cast<GLRenderTarget*>(target)->getFBO())
         {
-            fbo->determineFBOBufferSharingAllowed(*target);
             fbo->bind(true);
         }
         else
@@ -490,13 +437,9 @@ static const uchar depthBits[] =
             glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
     }
 
-    GLSurfaceDesc GLFBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa)
+    GLHardwarePixelBufferCommon* GLFBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height,
+                                                                     uint fsaa)
     {
-        GLSurfaceDesc retval;
-        auto* rb = new GLRenderBuffer(format, width, height, fsaa);
-        retval.buffer = rb;
-        retval.zoffset = 0;
-        retval.numSamples = fsaa;
-        return retval;
+        return new GLRenderBuffer(format, width, height, fsaa);
     }
 }

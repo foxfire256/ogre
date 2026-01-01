@@ -150,7 +150,7 @@ layout(binding = 0) uniform sampler2D diffuseMap;
 uniform sampler2D diffuseMap;
 ```
 
-@note as we cannot detect the presence of explicit binding, you must add the `has_sampler_binding true` option to the program definition, so your locations are not overriden
+@note as we cannot always detect the presence of explicit binding, you should add the `has_sampler_binding true` option to the program definition, so your locations are not overriden
 
 Binding the sampler in material script is done as:
 
@@ -654,17 +654,17 @@ Often, not every parameter you want to pass to a shader is unique to that progra
 ```cpp
 shared_params YourSharedParamsName
 {
-    shared_param_named mySharedParam1 float4 0.1 0.2 0.3 0.4
+    param_named mySharedParam1 float4 0.1 0.2 0.3 0.4
     ...
 }
 ```
 
 As you can see, you need to use the keyword ’shared\_params’ and follow it with the name that you will use to identify these shared parameters. Inside the curly braces, you can define one parameter per line, in a way which is very similar to the [param_named](#param_005fnamed) syntax. The definition of these lines is:
 @par
-Format: shared\_param\_named &lt;param\_name&gt; &lt;param\_type&gt; \[&lt;\[array\_size\]&gt;\] \[&lt;initial\_values&gt;\]
+Format: param\_named &lt;name&gt; &lt;type&gt; \[&lt;\[array\_size\]&gt;\] \[&lt;initial\_values&gt;\]
 
-@param param_name must be unique within the set
-@param param_type can be any one of float, float2, float3, float4, int, int2, int3, int4, matrix2x2, matrix2x3, matrix2x4, matrix3x2, matrix3x3, matrix3x4, matrix4x2, matrix4x3 and matrix4x4.
+@param name must be unique within the set
+@param type can be any one of float, float2, float3, float4, int, int2, int3, int4, matrix2x2, matrix2x3, matrix2x4, matrix3x2, matrix3x3, matrix3x4, matrix4x2, matrix4x3 and matrix4x4.
 @param array_size allows you to define arrays of param\_type should you wish, and if present must be a number enclosed in square brackets (and note, must be separated from the param\_type with whitespace).
 @param initial_values If you wish, you can also initialise the parameters by providing a list of values.
 
@@ -905,6 +905,7 @@ In general, you have to do the following changes compared to regular GLSL:
 - Use `mtxFromRows` / `mtxFromCols` to construct matrices from vectors
 - Use the HLSL style `mul` instead of `*` to multiply matrices
 - Use `vec2_splat(1.0)` instead of the `vec2(1.0)` single component constructor.
+- Use `f32vecN` instead of `highp vecN` types to denote full precision floats in the fragment shader.
 
 Let's take a look at how to use the `OgreUnifiedShader.h` macros by starting with a simple GLSL shader:
 

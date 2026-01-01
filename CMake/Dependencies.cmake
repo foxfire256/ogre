@@ -129,16 +129,16 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
     if(MSVC OR MINGW OR SKBUILD) # other platforms dont need this
         message(STATUS "Building SDL2")
         file(DOWNLOAD
-            https://libsdl.org/release/SDL2-2.32.8.tar.gz
-            ${PROJECT_BINARY_DIR}/SDL2-2.32.8.tar.gz)
+            https://libsdl.org/release/SDL2-2.32.10.tar.gz
+            ${PROJECT_BINARY_DIR}/SDL2-2.32.10.tar.gz)
         execute_process(COMMAND ${CMAKE_COMMAND} 
-            -E tar xf SDL2-2.32.8.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+            -E tar xf SDL2-2.32.10.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
         execute_process(COMMAND ${CMAKE_COMMAND}
             -E make_directory ${PROJECT_BINARY_DIR}/SDL2-build)
         execute_process(COMMAND ${BUILD_COMMAND_COMMON}
             -DSDL_STATIC=FALSE
             -DCMAKE_INSTALL_LIBDIR=lib
-            ${PROJECT_BINARY_DIR}/SDL2-2.32.8
+            ${PROJECT_BINARY_DIR}/SDL2-2.32.10
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/SDL2-build)
         execute_process(COMMAND ${CMAKE_COMMAND}
             --build ${PROJECT_BINARY_DIR}/SDL2-build ${BUILD_COMMAND_OPTS})
@@ -198,13 +198,14 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
         -DBUILD_ENET=OFF
         -DBUILD_UNIT_TESTS=OFF
         -DCMAKE_RELWITHDEBINFO_POSTFIX= # fixes FindBullet on MSVC
+        -DCMAKE_DEBUG_POSTFIX= # need to remove postfix so default find_package detects Bullet correctly
         -DBUILD_CLSOCKET=OFF
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         ${PROJECT_BINARY_DIR}/bullet3-3.25
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/bullet3-3.25)
     execute_process(COMMAND ${CMAKE_COMMAND}
         --build ${PROJECT_BINARY_DIR}/bullet3-3.25 ${BUILD_COMMAND_OPTS})
-    set(BULLET_ROOT ${OGREDEPS_PATH})
+    set(Bullet_ROOT ${OGREDEPS_PATH})
 endif()
 
 #######################################################################

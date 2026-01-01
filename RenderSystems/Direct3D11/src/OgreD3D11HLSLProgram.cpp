@@ -126,15 +126,11 @@ namespace Ogre {
 #define READ_NAME(member) {                                 \
     uint16 length = 0;                                      \
     cacheMicrocode->read(&length, sizeof(uint16));          \
-    curItem.member = "";                                    \
-    if(length > 0)                                          \
-    {                                                       \
-        char* str = new char[length + 1];                   \
-        cacheMicrocode->read(str, length);                  \
-        str[length] = '\0';                                 \
-        curItem.member = str;                               \
-    }                                                       \
-        }
+    char* str = new char[length + 1];                       \
+    cacheMicrocode->read(str, length);                      \
+    str[length] = '\0';                                     \
+    curItem.member = str;                                   \
+    }
 
 #define READ_NAME2(member) {                                 \
     uint16 length = 0;                                      \
@@ -827,10 +823,6 @@ namespace Ogre {
                     }
                     else
                     {
-                        auto blockSharedParams = GpuProgramManager::getSingleton().getSharedParameters(cb_name);
-
-                        auto cbuffer = HardwareBufferManager::getSingleton().createUniformBuffer(mD3d11ShaderBufferDescs[b].Size);
-                        blockSharedParams->_setHardwareBuffer(cbuffer);
                         mBufferInfoMap[cb_name] = b;
                     }
                 }
@@ -1065,7 +1057,8 @@ namespace Ogre {
                 break;
             } // columns
             break;
-        case D3D10_SVT_FLOAT:
+        case D3D_SVT_MIN16FLOAT:
+        case D3D_SVT_FLOAT:
             switch(d3dDesc.Rows)
             {
             case 1:

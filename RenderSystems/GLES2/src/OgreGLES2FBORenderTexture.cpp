@@ -27,10 +27,10 @@ THE SOFTWARE.
 */
 
 #include "OgreGLES2FBORenderTexture.h"
+#include "OgreGLES2FrameBufferObject.h"
 #include "OgreGLES2PixelFormat.h"
 #include "OgreLogManager.h"
 #include "OgreGLES2HardwarePixelBuffer.h"
-#include "OgreGLES2FBOMultiRenderTarget.h"
 #include "OgreRoot.h"
 #include "OgreGLES2RenderSystem.h"
 #include "OgreGLUtil.h"
@@ -40,39 +40,15 @@ namespace Ogre {
 
 //-----------------------------------------------------------------------------    
     GLES2FBORenderTexture::GLES2FBORenderTexture(const String &name,
-        const GLSurfaceDesc &target, bool writeGamma, uint fsaa):
-        GLRenderTexture(name, target, writeGamma, fsaa),
-        mFB(fsaa)
+        const GLSurfaceDesc &target, bool writeGamma):
+        GLFBORenderTexture(name, target, writeGamma, new GLES2FrameBufferObject())
     {
-        // Bind target to surface 0 and initialise
-        mFB.bindSurface(0, target);
-
-        // Get attributes
-        mWidth = mFB.getWidth();
-        mHeight = mFB.getHeight();
-    }
-    
-    void GLES2FBORenderTexture::getCustomAttribute(const String& name, void* pData)
-    {
-        if(name == GLRenderTexture::CustomAttributeString_FBO)
-        {
-            *static_cast<GLES2FrameBufferObject **>(pData) = &mFB;
-        }
-        else if(name == GLRenderTexture::CustomAttributeString_GLCONTEXT)
-        {
-            *static_cast<GLContext**>(pData) = mFB.getContext();
-        }
     }
 
-    void GLES2FBORenderTexture::swapBuffers()
-    {
-        mFB.swapBuffers();
-    }
-    
 #if OGRE_PLATFORM == OGRE_PLATFORM_ANDROID || OGRE_PLATFORM == OGRE_PLATFORM_EMSCRIPTEN
     void GLES2FBORenderTexture::notifyOnContextLost()
     {
-        mFB.notifyOnContextLost();
+        static_cast<GLES2FrameBufferObject*>(mFB.get())->notifyOnContextLost();
     }
     
     void GLES2FBORenderTexture::notifyOnContextReset()
@@ -81,27 +57,11 @@ namespace Ogre {
         target.buffer = static_cast<GLHardwarePixelBufferCommon*>(mBuffer);
         target.zoffset = mZOffset;
         
-        mFB.notifyOnContextReset(target);
+        static_cast<GLES2FrameBufferObject*>(mFB.get())->notifyOnContextReset(target);
         
-        static_cast<GLES2RenderSystem*>(Ogre::Root::getSingletonPtr()->getRenderSystem())->_createDepthBufferFor(this);
+        Root::getSingletonPtr()->getRenderSystem()->_createDepthBufferFor(this);
     }
 #endif
-    
-    //-----------------------------------------------------------------------------
-    bool GLES2FBORenderTexture::attachDepthBuffer( DepthBuffer *depthBuffer )
-    {
-        bool result;
-        if( (result = GLRenderTexture::attachDepthBuffer( depthBuffer )) )
-            mFB.attachDepthBuffer( depthBuffer );
-
-        return result;
-    }
-    //-----------------------------------------------------------------------------
-    void GLES2FBORenderTexture::_detachDepthBuffer()
-    {
-        mFB.detachDepthBuffer();
-        GLRenderTexture::_detachDepthBuffer();
-    }
    
     // Size of probe texture
     #define PROBE_SIZE 16
@@ -490,38 +450,14 @@ namespace Ogre {
     }
 
     GLES2FBORenderTexture *GLES2FBOManager::createRenderTexture(const String &name, 
-        const GLSurfaceDesc &target, bool writeGamma, uint fsaa)
+        const GLSurfaceDesc &target, bool writeGamma)
     {
-        GLES2FBORenderTexture *retval = new GLES2FBORenderTexture(name, target, writeGamma, fsaa);
+        GLES2FBORenderTexture *retval = new GLES2FBORenderTexture(name, target, writeGamma);
         return retval;
     }
 
-    void GLES2FBOManager::bind(RenderTarget *target)
+    GLHardwarePixelBufferCommon* GLES2FBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa)
     {
-        if(auto fbo = dynamic_cast<GLRenderTarget*>(target)->getFBO())
-        {
-            fbo->determineFBOBufferSharingAllowed(*target);
-            fbo->bind(true);
-        }
-        else
-        {
-            // Non-multisampled screen buffer is FBO #1 on iOS, multisampled is yet another,
-            // so give the target ability to influence decision which FBO to use
-            GLuint mainfbo = 0;
-#if OGRE_PLATFORM == OGRE_PLATFORM_APPLE_IOS
-            target->getCustomAttribute("GLFBO", &mainfbo);
-#endif
-            OGRE_CHECK_GL_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, mainfbo));
-        }
-    }
-
-    GLSurfaceDesc GLES2FBOManager::createNewRenderBuffer(unsigned format, uint32 width, uint32 height, uint fsaa)
-    {
-        GLSurfaceDesc retval;
-        auto* rb = OGRE_NEW GLES2RenderBuffer(format, width, height, fsaa);
-        retval.buffer = rb;
-        retval.zoffset = 0;
-        retval.numSamples = fsaa;
-        return retval;
+        return new GLES2RenderBuffer(format, width, height, fsaa);
     }
 }
