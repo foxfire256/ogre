@@ -18,7 +18,7 @@ list(APPEND HEADER_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/include/OgreOverlay.i)
 file(GLOB SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
-find_package(SDL3)
+find_package(SDL3 REQUIRED)
 
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   set(IMGUI_DIR "${PROJECT_BINARY_DIR}/imgui-1.91.9b" CACHE PATH "")
@@ -41,10 +41,6 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
     set(IMGUI_ENABLE_FREETYPE TRUE)
     list(APPEND SOURCE_FILES ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp)
   endif()
-  if(SDL3_FOUND)
-    list(APPEND SOURCE_FILES
-      ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp)
-  endif()
 else()
     list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/OgreImGuiOverlay.cpp")
 endif()
@@ -52,7 +48,7 @@ endif()
 # setup target
 add_library(OgreOverlay ${OGRE_COMP_LIB_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
 set_target_properties(OgreOverlay PROPERTIES VERSION ${OGRE_SOVERSION} SOVERSION ${OGRE_SOVERSION})
-target_link_libraries(OgreOverlay PUBLIC OgreMain)
+target_link_libraries(OgreOverlay PUBLIC OgreMain SDL3::SDL3)
 target_include_directories(OgreOverlay PUBLIC 
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   $<INSTALL_INTERFACE:include/OGRE/Overlay>)
@@ -71,7 +67,7 @@ endif()
 
 if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
   target_include_directories(OgreOverlay PUBLIC
-    PUBLIC "$<BUILD_INTERFACE:${IMGUI_DIR}>"
+    PUBLIC "$<BUILD_INTERFACE:${IMGUI_DIR}>" ${SDL3_INCLUDE_DIRS}
     PRIVATE "$<BUILD_INTERFACE:${IMGUI_DIR}/misc/freetype>")
 
   if(UNIX)
@@ -100,13 +96,8 @@ if(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI)
 
   list(APPEND HEADER_FILES
     ${IMGUI_DIR}/imgui.h
-    ${IMGUI_DIR}/imconfig.h)
-  if(SDL2_FOUND)
-    list(APPEND HEADER_FILES
-      ${IMGUI_DIR}/backends/imgui_impl_sdl3.h)
-	target_link_libraries(OgreOverlay PRIVATE SDL3::SDL3)
-    target_include_directories(OgreOverlay PRIVATE ${SDL3_INCLUDE_DIRS})
-  endif()
+    ${IMGUI_DIR}/imconfig.h
+	${IMGUI_DIR}/backends/imgui_impl_sdl3.h)
 endif()
 
 generate_export_header(OgreOverlay 
