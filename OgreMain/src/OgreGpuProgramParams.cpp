@@ -650,6 +650,7 @@ namespace Ogre
         , mTransposeMatrices(false)
         , mIgnoreMissingParams(false)
         , mActivePassIterationIndex(std::numeric_limits<size_t>::max())
+        , mUseLinearColours(false)
     {
         static_assert((sizeof(AutoConstantDictionary) / sizeof(AutoConstantDefinition) - 5) == ACT_MATERIAL_LOD_INDEX,
                       "AutoConstantDictionary out of sync");
@@ -679,6 +680,7 @@ namespace Ogre
         mTransposeMatrices = oth.mTransposeMatrices;
         mIgnoreMissingParams  = oth.mIgnoreMissingParams;
         mActivePassIterationIndex = oth.mActivePassIterationIndex;
+        mUseLinearColours = oth.mUseLinearColours;
 
         return *this;
     }
@@ -904,6 +906,9 @@ namespace Ogre
     void GpuProgramParameters::_writeRawConstant(size_t physicalIndex,
                                                  const ColourValue& colour, size_t count)
     {
+        if(mUseLinearColours)
+            return _writeRawConstants(physicalIndex, colour.gammaToLinear().ptr(), std::min(count, (size_t)4));
+
         // write either the number requested (for packed types) or up to 4
         _writeRawConstants(physicalIndex, colour.ptr(), std::min(count, (size_t)4));
     }
@@ -1545,7 +1550,8 @@ namespace Ogre
                                       ac.elementCount);
                     break;
                 case ACT_SURFACE_SPECULAR_COLOUR:
-                    _writeRawConstant(ac.physicalIndex, source->getSurfaceSpecularColour(),
+                    // we also pass metal-roughness here, so avoid any gamma correction
+                    _writeRawConstants(ac.physicalIndex, source->getSurfaceSpecularColour().ptr(),
                                       ac.elementCount);
                     break;
                 case ACT_SURFACE_EMISSIVE_COLOUR:
@@ -2345,6 +2351,7 @@ namespace Ogre
         mRegisters = source.mRegisters;
         mAutoConstants = source.getAutoConstantList();
         mCombinedVariability = source.mCombinedVariability;
+        mUseLinearColours = source.mUseLinearColours;
         copySharedParamSetUsage(source.mSharedParamSets);
     }
     //---------------------------------------------------------------------
