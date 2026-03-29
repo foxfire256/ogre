@@ -162,6 +162,7 @@ namespace Ogre {
             refreshConfig();
     }
 
+    //-----------------------------------------------------------------------
     bool GLRenderSystemCommon::checkExtension(const String& ext) const
     {
         return mExtensionList.find(ext) != mExtensionList.end() || mGLSupport->checkExtension(ext);

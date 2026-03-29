@@ -122,7 +122,7 @@ namespace Ogre {
             format != PF_L8 && format != PF_R8)
         {   
             format = Ogre::PF_A8B8G8R8;
-            size_t tempDataSize = image->getSize();
+            size_t tempDataSize = PixelUtil::getMemorySize(image->getWidth(), image->getHeight(), 1, format);
             tempData = OGRE_ALLOC_T(unsigned char, tempDataSize, Ogre::MEMCATEGORY_GENERAL);
             Ogre::PixelBox pbOut(image->getPixelBox(), format, tempData);
             PixelUtil::bulkPixelConversion(image->getPixelBox(), pbOut);
@@ -207,11 +207,6 @@ namespace Ogre {
     String STBIImageCodec::getType() const
     {
         return mType;
-    }
-    //---------------------------------------------------------------------
-    String STBIImageCodec::magicNumberToFileExt(const char *magicNumberPtr, size_t maxbytes) const
-    {
-        return BLANKSTRING;
     }
 
 #ifndef OGRE_STATIC_LIB

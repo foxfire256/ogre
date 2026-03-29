@@ -40,8 +40,12 @@ namespace Ogre {
 
 //-----------------------------------------------------------------------------
 GLFrameBufferObject::GLFrameBufferObject(uint fsaa)
-    : GLFrameBufferObjectCommon(fsaa)
+    : GLFrameBufferObjectCommon()
 {
+    auto* rs = static_cast<GLRenderSystemCommon*>(Root::getSingleton().getRenderSystem());
+    mContext = rs->_getCurrentContext();
+
+    mNumSamples = fsaa;
     // Generate framebuffer object
     glGenFramebuffersEXT(1, &mFB);
     // check multisampling
@@ -61,10 +65,6 @@ GLFrameBufferObject::GLFrameBufferObject(uint fsaa)
     {
         glGenFramebuffersEXT(1, &mMultisampleFB);
     }
-    else
-    {
-        mMultisampleFB = 0;
-    }
     }
     GLFrameBufferObject::~GLFrameBufferObject()
     {
@@ -81,7 +81,7 @@ GLFrameBufferObject::GLFrameBufferObject(uint fsaa)
         // Release depth and stencil, if they were bound
         mRTTManager->releaseRenderBuffer(mDepth);
         mRTTManager->releaseRenderBuffer(mStencil);
-        releaseMultisampleColourBuffer();
+        mRTTManager->releaseRenderBuffer(mMultisampleColourBuffer[0]);
 
         // First buffer must be bound
         if(!mColour[0].buffer)
@@ -135,24 +135,11 @@ GLFrameBufferObject::GLFrameBufferObject(uint fsaa)
             }
         }
 
-        // Now deal with depth / stencil
         if (mMultisampleFB && !PixelUtil::isDepth(getFormat()))
         {
             // Bind multisample buffer
             glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, mMultisampleFB);
-
-            // Create AA render buffer (colour)
-            // note, this can be shared too because we blit it to the final FBO
-            // right after the render is finished
-            initialiseMultisampleColourBuffer(format, width, height);
-
-            // Attach it, because we won't be attaching below and non-multisample has
-            // actually been attached to other FBO
-            mMultisampleColourBuffer.buffer->bindToFramebuffer(GL_COLOR_ATTACHMENT0_EXT, 
-                mMultisampleColourBuffer.zoffset);
-
-            // depth & stencil will be dealt with below
-
+            createAndBindRenderBuffer(format, width, height);
         }
 
         // Depth buffer is not handled here anymore.
@@ -188,10 +175,7 @@ GLFrameBufferObject::GLFrameBufferObject(uint fsaa)
         // Check status
         GLuint status;
         status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
-        
-        // Bind main buffer
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-        
+
         switch(status)
         {
         case GL_FRAMEBUFFER_COMPLETE_EXT:

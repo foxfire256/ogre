@@ -159,6 +159,8 @@ namespace Ogre {
         bool mPreparedForShadowVolumes : 1;
         /// Flag determines whether or not to display skeleton.
         bool mDisplaySkeleton : 1;
+        /// Flag determines whether or not to display bounding sphere.
+        bool mShowBoundingSphere : 1;
         /// Current state of the hardware animation as represented by the entities parameters.
         bool mCurrentHWAnimationState : 1;
         /// Flag indicating whether to skip automatic updating of the Skeleton's AnimationState.
@@ -456,13 +458,21 @@ namespace Ogre {
         */
         AnimationStateSet* getAllAnimationStates(void) const;
 
-        /** Tells the Entity whether or not it should display it's skeleton, if it has one.
+        /** Tells the Entity whether or not it should display its skeleton, if it has one.
         */
         void setDisplaySkeleton(bool display);
 
         /** Returns whether or not the entity is currently displaying its skeleton.
         */
         bool getDisplaySkeleton(void) const;
+
+        /** Tells the Entity whether or not it should display its bounding sphere.
+        */
+        void showBoundingSphere(bool show);
+
+        /** Returns whether or not the entity is currently displaying its bounding sphere.
+        */
+        bool getShowBoundingSphere(void) const;
 
         /** Returns the number of manual levels of detail that this entity supports.
 
@@ -724,6 +734,17 @@ namespace Ogre {
         */
         void _updateAnimation(void);
 
+        /** Updates the Skeleton's Bones based on currently enabled AnimationStates.
+
+            You don't normally need to call this, but if setUpdateBoundingBoxFromSkeleton()
+            is enabled and changes to AnimationState will result in big changes to the Bones
+            compared to the previous frame, call this to avoid culling glitches.
+
+            It is also useful if you want to query derived transforms for the bones at certain
+            times in an Animation.
+         */
+        void _updateSkeleton(void);
+
         /** Tests if any animation applied to this entity.
 
             An entity is animated if any animation state is enabled, or any manual bone
@@ -853,6 +874,12 @@ namespace Ogre {
             When true, the bounding box will be generated to only enclose the bones that are used for skinning.
             Also the resulting bounding box will be expanded by the amount of GetMesh()->getBoneBoundingRadius().
             The expansion amount can be changed on the mesh to achieve a better fitting bounding box.
+
+            Note that when rendering a frame, bounding boxes are used for culling before animation is applied.
+            This means the bounding box will be based on the skeleton's position from the previous frame.
+            In smooth animation the difference is neglible but when there is a big change in the skeleton's position
+            (for example when jumping to the beginning a moving animation) you should call _updateSkeleton()
+            after adjusting the AnimationState to avoid culling glitches.
         */
         void setUpdateBoundingBoxFromSkeleton(bool update);
 

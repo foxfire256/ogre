@@ -392,8 +392,8 @@ namespace Ogre
         }
 
         /// Simulate the shader function saturate that clamps a parameter value between 0 and 1
-        static inline float saturate(float t) { return (t < 0) ? 0 : ((t > 1) ? 1 : t); }
-        static inline double saturate(double t) { return (t < 0) ? 0 : ((t > 1) ? 1 : t); }
+        static inline float saturate(float t) { return Clamp(t, 0.0f, 1.0f); }
+        static inline double saturate(double t) { return Clamp(t, 0.0, 1.0); }
 
         /// saturated cast of size_t to uint16
         static inline uint16 uint16Cast(size_t t) { return t < UINT16_MAX ? uint16(t) : UINT16_MAX; }
@@ -406,7 +406,18 @@ namespace Ogre
         */
         template <typename V, typename T> static V lerp(const V& v0, const V& v1, const T& t)
         {
-            return v0 * (1 - t) + v1 * t;
+            return v0 + t * (v1 - v0);
+        }
+
+        /** Inverse linear interpolation.
+
+           Returns the fraction t such that lerp(v0, v1, t) == val.
+           t = (val - v0) / (v1 - v0).
+           Result is not clamped.
+        */
+        template <typename V> static V inverseLerp(const V& v0, const V& v1, const V& val)
+        {
+            return (val - v0) / (v1 - v0);
         }
 
         /** Sine function.
@@ -481,7 +492,7 @@ namespace Ogre
             @return
                 A random number in the range from [fLow,fHigh].
          */
-        static float RangeRandom(float fLow, float fHigh) { return (fHigh - fLow) * UnitRandom() + fLow; }
+        static float RangeRandom(float fLow, float fHigh) { return lerp(fLow, fHigh, UnitRandom()); }
 
         /** Generate a random number in the range [-1,1].
             @return

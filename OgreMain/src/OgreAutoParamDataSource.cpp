@@ -65,7 +65,11 @@ namespace Ogre {
          mCurrentSceneManager(0),
          mMainCamBoundsInfo(0),
          mCurrentPass(0),
-         mDummyNode(NULL)
+         mDummyNode(NULL),
+         mLastLightHash(1),
+         mGpuParamsDirty(GPV_ALL),
+         mCurrentUseIdentityView(false),
+         mCurrentUseIdentityProj(false)
     {
         mBlankLight.setDiffuseColour(ColourValue::Black);
         mBlankLight.setSpecularColour(ColourValue::Black);
@@ -103,15 +107,33 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     void AutoParamDataSource::setCurrentRenderable(const Renderable* rend)
     {
+        OgreAssertDbg(rend, "Cannot set a null renderable");
+        mGpuParamsDirty |= GPV_PER_OBJECT;
+
+        bool useIdentityView = rend->getUseIdentityView();
+        if (mCurrentUseIdentityView != useIdentityView)
+        {
+            mCurrentUseIdentityView = useIdentityView;
+            mViewMatrixDirty = true;
+            mInverseViewMatrixDirty = true;
+            mViewProjMatrixDirty = true;
+            mGpuParamsDirty |= GPV_GLOBAL;
+        }
+
+        bool useIdentityProj = rend->getUseIdentityProjection();
+        if (mCurrentUseIdentityProj != useIdentityProj)
+        {
+            mCurrentUseIdentityProj = useIdentityProj;
+            mProjMatrixDirty = true;
+            mViewProjMatrixDirty = true;
+            mGpuParamsDirty |= GPV_GLOBAL;
+        }
+
         mCurrentRenderable = rend;
         mWorldMatrixDirty = true;
-        mViewMatrixDirty = true;
-        mProjMatrixDirty = true;
         mWorldViewMatrixDirty = true;
-        mViewProjMatrixDirty = true;
         mWorldViewProjMatrixDirty = true;
         mInverseWorldMatrixDirty = true;
-        mInverseViewMatrixDirty = true;
         mInverseWorldViewMatrixDirty = true;
         mInverseTransposeWorldMatrixDirty = true;
         mInverseTransposeWorldViewMatrixDirty = true;
@@ -150,7 +172,23 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     void AutoParamDataSource::setCurrentLightList(const LightList* ll)
     {
+        static LightList NULL_LIGHTS;
+        ll = ll ? ll : &NULL_LIGHTS;
+
+        uint32 hash = FastHash((const char*)ll->data(), ll->size() * sizeof(Light*));
+        if (hash == mLastLightHash)
+            return;
+
+        mLastLightHash = hash;
+        mGpuParamsDirty |= GPV_LIGHTS;
         mCurrentLightList = ll;
+
+        mLightPosViewSpaceArray.clear();
+        mLightAttenuationArray.clear();
+        mSpotlightParamsArray.clear();
+        mLightDirViewSpaceArray.clear();
+        mLightDiffuseColourPowerScaledArray.clear();
+
         for(size_t i = 0; i < ll->size() && i < OGRE_MAX_SIMULTANEOUS_LIGHTS; ++i)
         {
             mSpotlightViewProjMatrixDirty[i] = true;
@@ -258,6 +296,74 @@ namespace Ogre {
             return Vector4f(1.0, 0.0, 0.0, 0.0); // since the main op is pow(.., vec4.z), this will result in 1.0
         }
     }
+    const Vector4f* AutoParamDataSource::getLightPositionViewSpaceArray(size_t size) const
+    {
+        if (size > mLightPosViewSpaceArray.size())
+        {
+            getViewMatrix(); // refresh view matrix
+            mLightPosViewSpaceArray.resize(size);
+            for (size_t i = 0; i < size; ++i)
+            {
+                mLightPosViewSpaceArray[i] = Vector4f(mViewMatrix * getLightAs4DVector(i));
+            }
+        }
+
+        return mLightPosViewSpaceArray.data();
+    }
+    const Vector4f* AutoParamDataSource::getLightAttenuationArray(size_t size) const
+    {
+        if (size > mLightAttenuationArray.size())
+        {
+            mLightAttenuationArray.resize(size);
+            for (size_t i = 0; i < size; ++i)
+            {
+                mLightAttenuationArray[i] = getLightAttenuation(i);
+            }
+        }
+
+        return mLightAttenuationArray.data();
+    }
+    const Vector4f* AutoParamDataSource::getSpotlightParamsArray(size_t size) const
+    {
+        if (size > mSpotlightParamsArray.size())
+        {
+            mSpotlightParamsArray.resize(size);
+            for (size_t i = 0; i < size; ++i)
+            {
+                mSpotlightParamsArray[i] = getSpotlightParams(i);
+            }
+        }
+
+        return mSpotlightParamsArray.data();
+    }
+    const Vector4f* AutoParamDataSource::getLightDirectionViewSpaceArray(size_t size) const
+    {
+        if (size > mLightDirViewSpaceArray.size())
+        {
+            auto invTransViewMatrix = getInverseTransposeViewMatrix().linear();
+            mLightDirViewSpaceArray.resize(size);
+            for (size_t i = 0; i < size; ++i)
+            {
+                Vector3 dirView = invTransViewMatrix * getLightDirection(i);
+                mLightDirViewSpaceArray[i] = Vector4f(dirView.x, dirView.y, dirView.z, 0.0f);
+            }
+        }
+
+        return mLightDirViewSpaceArray.data();
+    }
+    const ColourValue* AutoParamDataSource::getLightDiffuseColourPowerScaledArray(size_t size) const
+    {
+        if (size > mLightDiffuseColourPowerScaledArray.size())
+        {
+            mLightDiffuseColourPowerScaledArray.resize(size);
+            for (size_t i = 0; i < size; ++i)
+            {
+                mLightDiffuseColourPowerScaledArray[i] = getLightDiffuseColourWithPower(i);
+            }
+        }
+
+        return mLightDiffuseColourPowerScaledArray.data();
+    }
     //-----------------------------------------------------------------------------
     void AutoParamDataSource::setMainCamBoundsInfo(VisibleObjectsBoundsInfo* info)
     {
@@ -314,7 +420,7 @@ namespace Ogre {
     Affine3 AutoParamDataSource::getViewMatrix(const Camera* cam) const
     {
         Affine3 view;
-        if (mCurrentRenderable && mCurrentRenderable->getUseIdentityView())
+        if (mCurrentUseIdentityView)
             view = Affine3::IDENTITY;
         else
         {
@@ -352,7 +458,7 @@ namespace Ogre {
 
         // NB use API-independent projection matrix since GPU programs
         // bypass the API-specific handedness and use right-handed coords
-        if (mCurrentRenderable && mCurrentRenderable->getUseIdentityProjection())
+        if (mCurrentUseIdentityProj)
         {
             // Use identity projection matrix, still need to take RS depth into account.
             RenderSystem* rs = Root::getSingleton().getRenderSystem();
@@ -550,6 +656,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     void AutoParamDataSource::setAmbientLightColour(const ColourValue& ambient)
     {
+        mGpuParamsDirty |= GPV_GLOBAL;
         mAmbientLight = ambient;
     }
     //---------------------------------------------------------------------
@@ -571,6 +678,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     void AutoParamDataSource::setCurrentPass(const Pass* pass)
     {
+        mGpuParamsDirty |= GPV_GLOBAL;
         mCurrentPass = pass;
     }
     //-----------------------------------------------------------------------------

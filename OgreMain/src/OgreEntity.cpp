@@ -42,6 +42,7 @@ namespace Ogre {
           mVertexAnimationAppliedThisFrame(false),
           mPreparedForShadowVolumes(false),
           mDisplaySkeleton(false),
+          mShowBoundingSphere(false),
           mCurrentHWAnimationState(false),
           mSkipAnimStateUpdates(false),
           mAlwaysUpdateMainSkeleton(false),
@@ -422,7 +423,7 @@ namespace Ogre {
     void Entity::setUpdateBoundingBoxFromSkeleton(bool update)
     {
         mUpdateBoundingBoxFromSkeleton = update;
-        if (mMesh->isLoaded() && mMesh->getBoneBoundingRadius() == Real(0))
+        if (mUpdateBoundingBoxFromSkeleton && mMesh->isLoaded() && mMesh->getBoneBoundingRadius() == Real(0))
         {
             mMesh->_computeBoneBoundingRadius();
         }
@@ -675,6 +676,11 @@ namespace Ogre {
             {
                 mManager->getDebugDrawer()->drawBone(bone, mParentNode->_getFullTransform());
             }
+        }
+        // HACK to display bounding sphere
+        if (mShowBoundingSphere && mManager && mManager->getDebugDrawer())
+        {
+            mManager->getDebugDrawer()->drawSphere(getWorldBoundingSphere());
         }
     }
     //-----------------------------------------------------------------------
@@ -1263,6 +1269,11 @@ namespace Ogre {
         }
     }
     //-----------------------------------------------------------------------
+    void Entity::_updateSkeleton(void)
+    {
+        mSkeletonInstance->setAnimationState(*mAnimationState);
+    }
+    //-----------------------------------------------------------------------
     bool Entity::_isAnimated(void) const
     {
         return (mAnimationState && mAnimationState->hasEnabledAnimationState()) ||
@@ -1318,6 +1329,16 @@ namespace Ogre {
     bool Entity::getDisplaySkeleton(void) const
     {
         return mDisplaySkeleton;
+    }
+    //-----------------------------------------------------------------------
+    void Entity::showBoundingSphere(bool show)
+    {
+        mShowBoundingSphere = show;
+    }
+    //-----------------------------------------------------------------------
+    bool Entity::getShowBoundingSphere(void) const
+    {
+        return mShowBoundingSphere;
     }
     //-----------------------------------------------------------------------
     size_t Entity::getNumManualLodLevels(void) const

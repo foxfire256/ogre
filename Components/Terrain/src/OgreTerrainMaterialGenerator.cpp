@@ -139,17 +139,19 @@ namespace Ogre
             // don't render all the time, only on demand
             rtt->setAutoUpdated(false);
             // we dont need depth
-            rtt->setDepthBufferPool(DepthBuffer::POOL_NO_DEPTH);
+            rtt->setDepthBufferPool(RBP_NONE);
             Viewport* vp = rtt->addViewport(mCompositeMapCam);
             // don't render overlays
             vp->setOverlaysEnabled(false);
-
+            vp->setClearEveryFrame(false);
         }
 
         RenderTarget* rtt = mCompositeMapRTT->getBuffer()->getRenderTarget();
         rSys->_setRenderTarget(rtt);
         rSys->setScissorTest(true, rect);
+        auto oldVP = rSys->_getViewport();
         rtt->update();
+        rSys->_setViewport(oldVP); // D3D9 requires restoring the old one
         rSys->setScissorTest(false);
 
         // We have an RTT, we want to copy the results into a regular texture

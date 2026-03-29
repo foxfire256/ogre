@@ -51,7 +51,7 @@ THE SOFTWARE.
 #include <memory>
 
 namespace Ogre {
-bool SceneManager::msPerRenderableLights = true;
+bool SceneManager::msPerRenderableLights = false;
 //-----------------------------------------------------------------------
 SceneManager::SceneManager(const String& name) :
 mName(name),
@@ -65,8 +65,6 @@ mFogDensity(0),
 mSpecialCaseQueueMode(SCRQM_EXCLUDE),
 mWorldGeometryRenderQueue(RENDER_QUEUE_WORLD_GEOMETRY_1),
 mLastFrameNumber(0),
-mResetIdentityView(false),
-mResetIdentityProj(false),
 mFlipCullingOnNegativeScale(true),
 mLightsDirtyCounter(0),
 mMovableNameGenerator("Ogre/MO"),
@@ -81,9 +79,7 @@ mStencilShadowRenderer(this),
 mLightClippingInfoMapFrameNumber(999),
 mVisibilityMask(0xFFFFFFFF),
 mFindVisibleObjects(true),
-mCameraRelativeRendering(false),
-mLastLightHash(0),
-mGpuParamsDirty((uint16)GPV_ALL)
+mCameraRelativeRendering(false)
 {
     if (Root* root = Root::getSingletonPtr())
         _setDestinationRenderSystem(root->getRenderSystem());
@@ -872,8 +868,6 @@ const Pass* SceneManager::_setPass(const Pass* pass, bool shadowDerivation)
     mDestRenderSystem->setShadingType(pass->getShadingMode());
 
     mAutoParamDataSource->setPassNumber( pass->getIndex() );
-    // mark global params as dirty
-    mGpuParamsDirty |= (uint16)GPV_GLOBAL;
 
     return pass;
 }
@@ -1002,10 +996,11 @@ void SceneManager::_renderScene(Camera* camera, Viewport* vp, bool includeOverla
 
             // Prepare shadow textures if texture shadow based shadowing
             // technique in use
-            if (isShadowTechniqueTextureBased() && vp->getShadowsEnabled())
+            if (isShadowTechniqueTextureBased())
             {
-                OgreProfileGroup("prepareShadowTextures", OGREPROF_GENERAL);
+                OgreProfileGroup("updateShadowTextures", OGREPROF_GENERAL);
 
+                ensureShadowTexturesCreated();
                 // *******
                 // WARNING
                 // *******
@@ -1014,7 +1009,8 @@ void SceneManager::_renderScene(Camera* camera, Viewport* vp, bool includeOverla
                 // guaranteed persistent. Make sure that anything which
                 // MUST be specific to this camera / target is done
                 // AFTER THIS POINT
-                prepareShadowTextures(camera, vp);
+                if(vp->getShadowsEnabled())
+                    updateShadowTextures(camera, vp);
                 // reset the cameras & viewport because of the re-entrant call
                 mCameraInProgress = camera;
                 mCurrentViewport = vp;
@@ -1076,16 +1072,20 @@ void SceneManager::_renderScene(Camera* camera, Viewport* vp, bool includeOverla
     } // end lock on scene graph mutex
 
     mDestRenderSystem->_beginGeometryCount();
+    // Begin the frame
+    mDestRenderSystem->_beginFrame();
     // Clear the viewport if required
     if (mCurrentViewport->getClearEveryFrame())
     {
+        ColourValue clearColour = mCurrentViewport->getBackgroundColour();
+        if(mAutoParamDataSource->getCurrentRenderTarget()->isHardwareGammaEnabled())
+            clearColour = clearColour.gammaToLinear();
+
         mDestRenderSystem->clearFrameBuffer(
             mCurrentViewport->getClearBuffers(),
-            mCurrentViewport->getBackgroundColour(),
+            clearColour,
             mCurrentViewport->getDepthClear() );
     }
-    // Begin the frame
-    mDestRenderSystem->_beginFrame();
 
     mDestRenderSystem->_setTextureProjectionRelativeTo(mCameraRelativeRendering, camera->getDerivedPosition());
 
@@ -1547,27 +1547,6 @@ void SceneManager::renderBasicQueueGroupObjects(RenderQueueGroup* pGroup,
     }// for each priority
 }
 //-----------------------------------------------------------------------
-void SceneManager::setWorldTransform(Renderable* rend)
-{
-    // Issue view / projection changes if any
-    // Check view matrix
-    if (rend->getUseIdentityView())
-    {
-        mGpuParamsDirty |= (uint16)GPV_GLOBAL;
-        mResetIdentityView = true;
-    }
-
-    if (rend->getUseIdentityProjection())
-    {
-        mGpuParamsDirty |= (uint16)GPV_GLOBAL;
-
-        mResetIdentityProj = true;
-    }
-
-    // mark per-object params as dirty
-    mGpuParamsDirty |= (uint16)GPV_PER_OBJECT;
-}
-//-----------------------------------------------------------------------
 void SceneManager::issueRenderWithLights(Renderable* rend, const Pass* pass,
                                          const LightList* pLightListToUse,
                                          bool lightScissoringClipping)
@@ -1778,8 +1757,6 @@ void SceneManager::renderSingleObject(Renderable* rend, const Pass* pass,
     // Tell auto params object about the renderable change
     mAutoParamDataSource->setCurrentRenderable(rend);
 
-    setWorldTransform(rend);
-
     // Sort out negative scaling
     // Assume first world matrix representative
     if (mFlipCullingOnNegativeScale)
@@ -1818,9 +1795,6 @@ void SceneManager::renderSingleObject(Renderable* rend, const Pass* pass,
         {
             issueRenderWithLights(rend, pass, manualLightList, lightScissoringClipping);
         }
-
-        // Reset view / projection changes if any
-        resetViewProjMode();
         return;
     }
 
@@ -1989,14 +1963,10 @@ void SceneManager::renderSingleObject(Renderable* rend, const Pass* pass,
 
         issueRenderWithLights(rend, pass, pLightListToUse, lightScissoringClipping);
     } // possibly iterate per light
-
-    // Reset view / projection changes if any
-    resetViewProjMode();
 }
 //-----------------------------------------------------------------------
 void SceneManager::setAmbientLight(const ColourValue& colour)
 {
-    mGpuParamsDirty |= GPV_GLOBAL;
     mAutoParamDataSource->setAmbientLightColour(colour);
 }
 //-----------------------------------------------------------------------
@@ -2281,27 +2251,6 @@ void SceneManager::manualRender(Renderable* rend, const Pass* pass, Viewport* vp
 
     if (doBeginEndFrame)
         mDestRenderSystem->_endFrame();
-
-}
-//---------------------------------------------------------------------
-void SceneManager::resetViewProjMode()
-{
-    if (mResetIdentityView)
-    {
-        // Coming back to normal from identity view
-        mGpuParamsDirty |= (uint16)GPV_GLOBAL;
-
-        mResetIdentityView = false;
-    }
-
-    if (mResetIdentityProj)
-    {
-        // Coming back from flat projection
-        mGpuParamsDirty |= (uint16)GPV_GLOBAL;
-
-        mResetIdentityProj = false;
-    }
-
 
 }
 //---------------------------------------------------------------------
@@ -2892,10 +2841,6 @@ void SceneManager::ensureShadowTexturesCreated()
 {
     mTextureShadowRenderer.ensureShadowTexturesCreated();
 }
-void SceneManager::destroyShadowTextures(void)
-{
-    mTextureShadowRenderer.destroyShadowTextures();
-}
 const std::vector<Camera*>& SceneManager::getShadowTextureCameras()
 {
     return mTextureShadowRenderer.mShadowTextureCameras;
@@ -2906,7 +2851,7 @@ bool SceneManager::isShadowTextureConfigDirty() const
     return mTextureShadowRenderer.mShadowTextureConfigDirty;
 }
 
-void SceneManager::prepareShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList)
+void SceneManager::updateShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList)
 {
         // Set the illumination stage, prevents recursive calls
     IlluminationRenderStage savedStage = mIlluminationStage;
@@ -2917,7 +2862,8 @@ void SceneManager::prepareShadowTextures(Camera* cam, Viewport* vp, const LightL
 
     try
     {
-        mTextureShadowRenderer.prepareShadowTextures(cam, vp, lightList);
+        ensureShadowTexturesCreated();
+        mTextureShadowRenderer.updateShadowTextures(cam, vp, lightList);
     }
     catch (Exception&)
     {
@@ -3612,46 +3558,34 @@ void SceneManager::_handleLodEvents()
 //---------------------------------------------------------------------
 void SceneManager::useLights(const LightList* lights, ushort limit)
 {
-    static LightList NULL_LIGHTS;
-    lights = lights ? lights : &NULL_LIGHTS;
-
-    auto hash = FastHash((const char*)lights->data(), lights->size() * sizeof(Light*));
-    if(hash != mLastLightHash)
-    {
-        mLastLightHash = hash;
-
-        // Update any automatic gpu params for lights
-        // Other bits of information will have to be looked up
-        mAutoParamDataSource->setCurrentLightList(lights);
-        mGpuParamsDirty |= GPV_LIGHTS;
-    }
-
-    mDestRenderSystem->_useLights(std::min<ushort>(limit, lights->size()));
+    // Update any automatic gpu params for lights
+    // Other bits of information will have to be looked up
+    mAutoParamDataSource->setCurrentLightList(lights);
+    mDestRenderSystem->_useLights(std::min<ushort>(limit, lights ? lights->size() : 0));
 }
 //---------------------------------------------------------------------
 void SceneManager::bindGpuProgram(GpuProgram* prog)
 {
     // need to dirty the light hash, and params that need resetting, since program params will have been invalidated
-    // Use 1 to guarantee changing it (using 0 could result in no change if list is empty)
-    // Hash == 1 is almost impossible to achieve otherwise
-    mLastLightHash = 1;
-    mGpuParamsDirty = (uint16)GPV_ALL;
+    mAutoParamDataSource->setCurrentLightList(nullptr);
+    mAutoParamDataSource->markGpuParamsDirty(GPV_ALL);
     mDestRenderSystem->bindGpuProgram(prog);
 }
 //---------------------------------------------------------------------
 void SceneManager::_markGpuParamsDirty(uint16 mask)
 {
-    mGpuParamsDirty |= mask;
+    mAutoParamDataSource->markGpuParamsDirty(mask);
 }
 //---------------------------------------------------------------------
 void SceneManager::updateGpuProgramParameters(const Pass* pass)
 {
-    if (!mGpuParamsDirty)
+    uint16 mask = mAutoParamDataSource->getGpuParamsDirty();
+    if (!mask)
         return;
 
     if (pass->isProgrammable())
     {
-        pass->_updateAutoParams(mAutoParamDataSource.get(), mGpuParamsDirty);
+        pass->_updateAutoParams(mAutoParamDataSource.get(), mask);
 
         for (int i = 0; i < GPT_COMPUTE_PROGRAM; i++) // compute program is bound via RSComputeOperation
         {
@@ -3659,7 +3593,7 @@ void SceneManager::updateGpuProgramParameters(const Pass* pass)
             if (pass->hasGpuProgram(t))
             {
                 mDestRenderSystem->bindGpuProgramParameters(t, pass->getGpuProgramParameters(t),
-                                                            mGpuParamsDirty);
+                                                            mask);
             }
         }
     }
@@ -3667,11 +3601,11 @@ void SceneManager::updateGpuProgramParameters(const Pass* pass)
     // GLSL and HLSL2 allow FFP state access
     if(mFixedFunctionParams)
     {
-        mFixedFunctionParams->_updateAutoParams(mAutoParamDataSource.get(), mGpuParamsDirty);
-        mDestRenderSystem->applyFixedFunctionParams(mFixedFunctionParams, mGpuParamsDirty);
+        mFixedFunctionParams->_updateAutoParams(mAutoParamDataSource.get(), mask);
+        mDestRenderSystem->applyFixedFunctionParams(mFixedFunctionParams, mask);
     }
 
-    mGpuParamsDirty = 0;
+    mAutoParamDataSource->resetGpuParamsDirty();
 }
 //---------------------------------------------------------------------
 void SceneManager::_issueRenderOp(Renderable* rend, const Pass* pass)
@@ -3716,9 +3650,9 @@ void VisibleObjectsBoundsInfo::merge(const AxisAlignedBox& boxBounds, const Sphe
     // use view matrix to determine distance, works with custom view matrices
     Vector3 vsSpherePos = cam->getViewMatrix(true) * sphereBounds.getCenter();
     Real camDistToCenter = vsSpherePos.length();
-    minDistance = std::min(minDistance, std::max((Real)0, camDistToCenter - sphereBounds.getRadius()));
+    minDistance = Math::Clamp(camDistToCenter - sphereBounds.getRadius(), Real(0), minDistance);
     maxDistance = std::max(maxDistance, camDistToCenter + sphereBounds.getRadius());
-    minDistanceInFrustum = std::min(minDistanceInFrustum, std::max((Real)0, camDistToCenter - sphereBounds.getRadius()));
+    minDistanceInFrustum = Math::Clamp(camDistToCenter - sphereBounds.getRadius(), Real(0), minDistanceInFrustum);
     maxDistanceInFrustum = std::max(maxDistanceInFrustum, camDistToCenter + sphereBounds.getRadius());
 }
 //---------------------------------------------------------------------
@@ -3728,7 +3662,7 @@ void VisibleObjectsBoundsInfo::mergeNonRenderedButInFrustum(const AxisAlignedBox
     // use view matrix to determine distance, works with custom view matrices
     Vector3 vsSpherePos = cam->getViewMatrix(true) * sphereBounds.getCenter();
     Real camDistToCenter = vsSpherePos.length();
-    minDistanceInFrustum = std::min(minDistanceInFrustum, std::max((Real)0, camDistToCenter - sphereBounds.getRadius()));
+    minDistanceInFrustum = Math::Clamp(camDistToCenter - sphereBounds.getRadius(), Real(0), minDistanceInFrustum);
     maxDistanceInFrustum = std::max(maxDistanceInFrustum, camDistToCenter + sphereBounds.getRadius());
 
 }

@@ -554,8 +554,6 @@ namespace Ogre {
         uint8 mWorldGeometryRenderQueue;
         
         unsigned long mLastFrameNumber;
-        bool mResetIdentityView;
-        bool mResetIdentityProj;
 
         bool mFlipCullingOnNegativeScale;
         CullingMode mPassCullingMode;
@@ -684,9 +682,6 @@ namespace Ogre {
             return OGRE_NEW AutoParamDataSource();
         }
 
-        /// Internal method for destroying shadow textures (texture-based shadows)
-        void destroyShadowTextures(void);
-
         /** Internal method for preparing the render queue for use with each render. */
         void prepareRenderQueue(void);
 
@@ -711,17 +706,10 @@ namespace Ogre {
         /// Internal method for firing destruction event
         void fireSceneManagerDestroyed();
 
-        /** Internal method used by _renderSingleObject to set the world transform */
-        void setWorldTransform(Renderable* rend);
-
         /** Internal method used by _renderSingleObject to render a single light pass */
         void issueRenderWithLights(Renderable* rend, const Pass* pass,
                                    const LightList* pLightListToUse,
                                    bool lightScissoringClipping);
-
-        /** Internal method used by _renderSingleObject to deal with renderables
-            which override the camera's own view / projection matrices. */
-        void resetViewProjMode();
 
         typedef std::map<String, MovableObjectCollection*> MovableObjectCollectionMap;
         MovableObjectCollectionMap mMovableObjectCollectionMap;
@@ -790,7 +778,7 @@ namespace Ogre {
             SamplerPtr mBorderSampler;
 
             TexturePtr mSpotFadeTexture;
-            TexturePtr mNullShadowTexture;
+            TexturePtr mNoShadowTexture;
             CameraList mShadowTextureCameras;
             LightList mShadowTextureCurrentCasterLightList; // remove for 13.4: unused
             // ShadowCamera to light mapping
@@ -851,7 +839,7 @@ namespace Ogre {
             /// Internal method for creating shadow textures (texture-based shadows)
             void ensureShadowTexturesCreated();
             void setupRenderTarget(const String& camName, RenderTarget* rendTarget, uint16 depthBufferId);
-            void prepareShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList);
+            void updateShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList);
             void prepareTexCam(Camera* texCam, Camera* cam, Viewport* vp, Light* light, size_t j);
             /// Internal method for destroying shadow textures (texture-based shadows)
             void destroyShadowTextures(void);
@@ -1010,11 +998,6 @@ namespace Ogre {
 
         /// Whether to use camera-relative rendering
         bool mCameraRelativeRendering;
-
-        /// Last light sets
-        uint32 mLastLightHash;
-        /// Gpu params that need rebinding (mask of GpuParamVariability)
-        uint16 mGpuParamsDirty;
 
         /** Render a group in the ordinary way */
         void renderBasicQueueGroupObjects(RenderQueueGroup* pGroup,
@@ -1327,11 +1310,10 @@ namespace Ogre {
             allocating and releasing memory, which is convenient in complex
             scenes.
             @par
-                To include the returned SceneNode in the scene, use the addChild
-                method of the SceneNode which is to be it's parent.
+                To include the returned SceneNode in the scene, use the SceneNode::addChild
+                method of the node which is to be it's parent.
             @par
-                Note that this method takes no parameters, and the node created is unnamed (it is
-                actually given a generated name, which you can retrieve if you want).
+                Note that this method takes no parameters, and the node created is unnamed.
                 If you wish to create a node with a specific name, call the alternative method
                 which takes a name parameter.
         */
@@ -1343,13 +1325,13 @@ namespace Ogre {
         /** Destroys a SceneNode.
 
             This allows you to physically delete an individual SceneNode if you want to.
-            Note that this is not normally recommended, it's better to allow SceneManager
-            to delete the nodes when the scene is cleared.
+            @note it is not necessary to call this method when destroying a scene.
+            it's better to allow SceneManager to delete the nodes when the scene is cleared.
         */
         virtual void destroySceneNode(SceneNode* sn);
 
         /// @overload
-        virtual void destroySceneNode(const String& name);
+        void destroySceneNode(const String& name);
 
         /** Gets the SceneNode at the root of the scene hierarchy.
 
@@ -2739,10 +2721,16 @@ namespace Ogre {
         Real getShadowFarDistanceSquared(void) const
         { return mTextureShadowRenderer.mDefaultShadowFarDistSquared; }
 
-        /// Method for preparing shadow textures ready for use in a regular render
+        /// Method for update shadow textures ready for use in a regular render
         /// Do not call manually unless before frame start or rendering is paused
         /// If lightList is not supplied, will render all lights in frustum
-        virtual void prepareShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList = 0);
+        virtual void updateShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList = 0);
+
+        /// @deprecated use @ref updateShadowTextures
+        OGRE_DEPRECATED void prepareShadowTextures(Camera* cam, Viewport* vp, const LightList* lightList = 0)
+        {
+            updateShadowTextures(cam, vp, lightList);
+        }
 
         /** Set the size of the texture used for all texture-based shadows.
 
@@ -3392,6 +3380,7 @@ namespace Ogre {
         virtual void drawSceneNode(const SceneNode* node) = 0;
         virtual void drawBone(const Node* node, const Affine3 & transform = Affine3::IDENTITY) = 0;
         virtual void drawFrustum(const Frustum* frust) = 0;
+        virtual void drawSphere(const Sphere & sphere) = 0;
     };
 
     /** Default implementation of IntersectionSceneQuery. */

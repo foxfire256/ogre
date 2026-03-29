@@ -85,6 +85,13 @@ namespace Ogre {
         mutable Vector4 mLodCameraPosition;
         mutable Vector4 mLodCameraPositionObjectSpace;
 
+        // Light arrays fastpath
+        mutable std::vector<Vector4f> mLightPosViewSpaceArray;
+        mutable std::vector<Vector4f> mLightAttenuationArray;
+        mutable std::vector<Vector4f> mSpotlightParamsArray;
+        mutable std::vector<Vector4f> mLightDirViewSpaceArray;
+        mutable std::vector<ColourValue> mLightDiffuseColourPowerScaledArray;
+
         mutable bool mWorldMatrixDirty;
         mutable bool mViewMatrixDirty;
         mutable bool mProjMatrixDirty;
@@ -129,6 +136,12 @@ namespace Ogre {
 
         SceneNode mDummyNode;
         Light mBlankLight;
+        /// Last light sets
+        uint32 mLastLightHash;
+        /// Gpu params that need rebinding (mask of GpuParamVariability)
+        uint16 mGpuParamsDirty;
+        bool mCurrentUseIdentityView;
+        bool mCurrentUseIdentityProj;
     public:
         AutoParamDataSource();
         /** Updates the current renderable */
@@ -198,6 +211,13 @@ namespace Ogre {
         Real getLightPowerScale(size_t index) const;
         Vector4f getLightAttenuation(size_t index) const;
         Vector4f getSpotlightParams(size_t index) const;
+        // Light arrays fastpath
+        const Vector4f* getLightPositionViewSpaceArray(size_t size) const;
+        const Vector4f* getLightAttenuationArray(size_t size) const;
+        const Vector4f* getSpotlightParamsArray(size_t size) const;
+        const Vector4f* getLightDirectionViewSpaceArray(size_t size) const;
+        const ColourValue* getLightDiffuseColourPowerScaledArray(size_t size) const;
+
         void setAmbientLightColour(const ColourValue& ambient);
         const ColourValue& getAmbientLightColour(void) const;
         const ColourValue& getSurfaceAmbientColour(void) const;
@@ -274,6 +294,9 @@ namespace Ogre {
         int getMaterialLodIndex() const;
         void setPassNumber(const int passNumber);
         void incPassNumber(void);
+        void markGpuParamsDirty(uint16 mask) { mGpuParamsDirty |= mask; }
+        uint16 getGpuParamsDirty() const { return mGpuParamsDirty; }
+        void resetGpuParamsDirty() { mGpuParamsDirty = 0; }
         void updateLightCustomGpuParameter(const GpuProgramParameters::AutoConstantEntry& constantEntry, GpuProgramParameters *params) const;
     };
     /** @} */

@@ -49,7 +49,7 @@ RsImageCodec::RegisteredCodecList RsImageCodec::msCodecList;
 void RsImageCodec::startup(void)
 {
     // Register codecs
-    String exts = "jpeg,jpg,png,bmp,gif,tiff,tga,exr,hdr";
+    String exts = "jpeg,jpg,png,bmp,gif,tiff,tga,exr,hdr,webp";
     StringVector extsVector = StringUtil::split(exts, ",");
     for (auto& v : extsVector)
     {
@@ -184,9 +184,6 @@ void RsImageCodec::decode(const DataStreamPtr& input, const Any& output) const
 }
 //---------------------------------------------------------------------
 String RsImageCodec::getType() const { return mType; }
-//---------------------------------------------------------------------
-String RsImageCodec::magicNumberToFileExt(const char* magicNumberPtr, size_t maxbytes) const { return BLANKSTRING; }
-
 #ifndef OGRE_STATIC_LIB
 extern "C" void _OgreRsImageCodecExport dllStartPlugin();
 extern "C" void _OgreRsImageCodecExport dllStopPlugin();

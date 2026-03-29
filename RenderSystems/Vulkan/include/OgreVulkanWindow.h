@@ -61,7 +61,7 @@ namespace Ogre
         };
 
         bool mLowestLatencyVSync;
-        bool mHwGamma;
+        bool mHdrDisplay;
 
         bool mVisible;
         bool mHidden;

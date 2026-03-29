@@ -118,13 +118,8 @@ namespace Ogre {
         */
         virtual String getType() const = 0;
 
-        /** Returns whether a magic number header matches this codec.
-        @param magicNumberPtr Pointer to a stream of bytes which should identify the file.
-            Note that this may be more than needed - each codec may be looking for 
-            a different size magic number.
-        @param maxbytes The number of bytes passed
-        */
-        bool magicNumberMatch(const char *magicNumberPtr, size_t maxbytes) const
+        /// @deprecated use magicNumberToFileExt directly
+        OGRE_DEPRECATED bool magicNumberMatch(const char *magicNumberPtr, size_t maxbytes) const
         { return !magicNumberToFileExt(magicNumberPtr, maxbytes).empty(); }
         /** Maps a magic number header to a file extension, if this codec recognises it.
         @param magicNumberPtr Pointer to a stream of bytes which should identify the file.
@@ -133,7 +128,7 @@ namespace Ogre {
         @param maxbytes The number of bytes passed
         @return A blank string if the magic number was unknown, or a file extension.
         */
-        virtual String magicNumberToFileExt(const char *magicNumberPtr, size_t maxbytes) const = 0;
+        virtual String magicNumberToFileExt(const char* magicNumberPtr, size_t maxbytes) const;
 
         virtual bool setParameter(const String& name, const String& value) { return false; }
     };

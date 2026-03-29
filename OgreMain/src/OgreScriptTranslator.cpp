@@ -3669,6 +3669,7 @@ namespace Ogre{
         uint32 animParametricsCount = 0;
 
         String value;
+        bool bval;
         for(auto & i : obj->children)
         {
             if(i->type == ANT_PROPERTY)
@@ -3676,6 +3677,12 @@ namespace Ogre{
                 PropertyAbstractNode *prop = static_cast<PropertyAbstractNode*>(i.get());
                 switch(prop->id)
                 {
+                case ID_USE_LINEAR_COLOURS:
+                    if(getValue(prop, compiler, bval))
+                    {
+                        params->setUseLinearColours(bval);
+                    }
+                    break;
                 case ID_SHARED_PARAMS_REF:
                     if(getValue(prop, compiler, value))
                     {
@@ -4116,17 +4123,23 @@ namespace Ogre{
                 continue;
 
             PropertyAbstractNode *prop = static_cast<PropertyAbstractNode*>(i.get());
-            if (prop->id != ID_SHARED_PARAM_NAMED)
+            if (prop->id != ID_SHARED_PARAM_NAMED && prop->id != ID_PARAM_NAMED)
             {
                 compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line,
                                    prop->name);
                 continue;
             }
 
+            if(prop->id == ID_SHARED_PARAM_NAMED)
+            {
+                compiler->addError(ScriptCompiler::CE_DEPRECATEDSYMBOL, prop->file, prop->line,
+                                   "shared_param_named is deprecated. Use param_named instead");
+            }
+
             if (prop->values.size() < 2)
             {
                 compiler->addError(ScriptCompiler::CE_INVALIDPARAMETERS, prop->file, prop->line,
-                                   "shared_param_named - expected 2 or more arguments");
+                                   prop->name + " - expected 2 or more arguments");
                 continue;
             }
 
@@ -4575,7 +4588,7 @@ namespace Ogre{
                         bool hwGammaWrite = false;
                         uint32 fsaa = 1;
                         auto type = TEX_TYPE_2D;
-                        uint16 depthBufferId = DepthBuffer::POOL_DEFAULT;
+                        uint16 depthBufferId = RBP_DEFAULT;
                         CompositionTechnique::TextureScope scope = CompositionTechnique::TS_LOCAL;
                         Ogre::PixelFormatList formats;
 
@@ -4638,6 +4651,9 @@ namespace Ogre{
                                 break;
                             case ID_2DARRAY:
                                 type = TEX_TYPE_2D_ARRAY;
+                                break;
+                            case ID_2DMS:
+                                type = TEX_TYPE_2D_MULTISAMPLE;
                                 break;
                             case ID_SCOPE_LOCAL:
                                 scope = CompositionTechnique::TS_LOCAL;

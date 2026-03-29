@@ -43,6 +43,7 @@ THE SOFTWARE.
 #include <assimp/IOStream.hpp>
 #include <assimp/IOSystem.hpp>
 #include <assimp/DefaultIOSystem.h>
+#include <assimp/GltfMaterial.h>
 
 #include <Ogre.h>
 
@@ -205,8 +206,7 @@ aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframe
         // got 2 keys can interpolate
         if (frontKey && backKey)
         {
-            float prop =
-                (float)(((double)it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime));
+            float prop = (float)(Math::inverseLerp<double>(frontKey->mTime, backKey->mTime, it->first));
             prop /= ticksPerSecond;
             vect = Math::lerp(frontKey->mValue, backKey->mValue, prop);
         }
@@ -254,8 +254,7 @@ aiQuaternion getRotate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframes
         // got 2 keys can interpolate
         if (frontKey && backKey)
         {
-            float prop =
-                (float)(((double)it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime));
+            float prop = (float)(Math::inverseLerp<double>(frontKey->mTime, backKey->mTime, it->first));
             prop /= ticksPerSecond;
             aiQuaternion::Interpolate(rot, frontKey->mValue, backKey->mValue, prop);
         }
@@ -303,8 +302,7 @@ aiVector3D getScale(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap
         // got 2 keys can interpolate
         if (frontKey && backKey)
         {
-            float prop =
-                (float)(((double)it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime));
+            float prop = (float)(Math::inverseLerp<double>(frontKey->mTime, backKey->mTime, it->first));
             prop /= ticksPerSecond;
             vect = Math::lerp(frontKey->mValue, backKey->mValue, prop);
         }
@@ -446,7 +444,10 @@ bool AssimpLoader::_load(const char* name, Assimp::Importer& importer, Mesh* mes
             auto stream = std::make_shared<MemoryDataStream>(tex->pcData, tex->mWidth, false);
             try
             {
-                img.load(stream, tex->achFormatHint);
+                auto format = String(tex->achFormatHint);
+                if (format == "web") // fixup assimp truncation
+                    format = "webp";
+                img.load(stream, format);
             }
             catch (Exception& e)
             {
@@ -1085,7 +1086,11 @@ static MaterialPtr createMaterial(const aiMaterial* mat, const Ogre::String &gro
         rs->addTemplateSubRenderState(srs);
     }
 
-    if (getTextureName(mat, aiTextureType_UNKNOWN, scene, meshName, basename))
+    aiTextureType metalRoughnessType = aiTextureType_UNKNOWN;
+    // regards to assimp devs for this nice macro, requiring this statement to unpack
+    if(metalRoughnessType = AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE) {}
+
+    if (getTextureName(mat, metalRoughnessType, scene, meshName, basename))
     {
         if (verbose)
         {
@@ -1094,12 +1099,12 @@ static MaterialPtr createMaterial(const aiMaterial* mat, const Ogre::String &gro
 
         shaderGen->createShaderBasedTechnique(omat->getTechnique(0), MSN_SHADERGEN);
         auto rs = shaderGen->getRenderState(MSN_SHADERGEN, *omat, 0);
-        auto srs = shaderGen->createSubRenderState("CookTorranceLighting");
+        auto srs = shaderGen->createSubRenderState(RTShader::SRS_COOK_TORRANCE_LIGHTING);
 
         srs->setParameter("texture", basename);
         rs->addTemplateSubRenderState(srs);
 
-        srs = shaderGen->createSubRenderState("FFP_Texturing");
+        srs = shaderGen->createSubRenderState(RTShader::SRS_TEXTURING);
         srs->setParameter("late_add_blend", "true");
         rs->addTemplateSubRenderState(srs);
     }
@@ -1129,7 +1134,6 @@ bool AssimpLoader::createSubMesh(const String& name, int index, const aiNode* pN
     // prime pointers to vertex related data
     aiVector3D* vec = mesh->mVertices;
     aiVector3D* norm = mesh->mNormals;
-    aiVector3D* uv = mesh->mTextureCoords[0];
     aiVector3D* tang = mesh->mTangents;
     aiColor4D *col = mesh->mColors[0];
 
@@ -1174,13 +1178,16 @@ bool AssimpLoader::createSubMesh(const String& name, int index, const aiNode* pN
         offset += declaration->addElement(source, offset, VET_FLOAT3, VES_NORMAL).getSize();
     }
 
-    if (uv)
+    for (int uvindex = 0; uvindex < AI_MAX_NUMBER_OF_TEXTURECOORDS; uvindex++)
     {
+        aiVector3D* uv = mesh->mTextureCoords[uvindex];
+        if (!uv)
+            break;
         if (!mQuietMode)
         {
             LogManager::getSingleton().logMessage(StringUtil::format("%d uvs", mesh->mNumVertices));
         }
-        offset += declaration->addElement(source, offset, VET_FLOAT2, VES_TEXTURE_COORDINATES).getSize();
+        offset += declaration->addElement(source, offset, VET_FLOAT2, VES_TEXTURE_COORDINATES, uvindex).getSize();
     }
 
     if (tang)
@@ -1249,11 +1256,13 @@ bool AssimpLoader::createSubMesh(const String& name, int index, const aiNode* pN
         }
 
         // uvs
-        if (uv)
+        for (int uvindex = 0; uvindex < AI_MAX_NUMBER_OF_TEXTURECOORDS; uvindex++)
         {
-            *vdata++ = uv->x;
-            *vdata++ = uv->y;
-            uv++;
+            aiVector3D* uv = mesh->mTextureCoords[uvindex];
+            if (!uv)
+                break;
+            *vdata++ = uv[i].x;
+            *vdata++ = uv[i].y;
         }
 
         if(tang)
@@ -1391,7 +1400,6 @@ struct AssimpCodec : public Codec
 
     AssimpCodec(const String& type) : mType(type) {}
 
-    String magicNumberToFileExt(const char* magicNumberPtr, size_t maxbytes) const override { return ""; }
     String getType() const override { return mType; }
     void decode(const DataStreamPtr& input, const Any& output) const override
     {

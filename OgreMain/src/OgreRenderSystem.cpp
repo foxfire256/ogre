@@ -212,6 +212,9 @@ namespace Ogre {
         if((opt = mOptions.find("sRGB Gamma Conversion")) != end)
             miscParams.emplace("gamma", opt->second.currentValue);
 
+        if((opt = mOptions.find("HDR Display")) != end)
+            miscParams.emplace("hdrDisplay", opt->second.currentValue);
+
         if((opt = mOptions.find("Colour Depth")) != end)
             miscParams.emplace("colourDepth", opt->second.currentValue);
 
@@ -508,9 +511,19 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void RenderSystem::setDepthBufferFor( RenderTarget *renderTarget )
     {
-        uint16 poolId = renderTarget->getDepthBufferPool();
-        if( poolId == DepthBuffer::POOL_NO_DEPTH )
+        uint16 poolNum = renderTarget->getDepthBufferPool();
+        if( poolNum == RBP_NONE )
             return; //RenderTarget explicitly requested no depth buffer
+
+        uint32 poolId = HashCombine(0, poolNum);
+        poolId = HashCombine(poolId, renderTarget->getFSAA());
+
+        if(!getCapabilities()->hasCapability(RSC_RTT_INDEPENDENT_BUFFER_SIZE))
+        {
+            //Depth buffer must be EXACT same size as RT
+            poolId = HashCombine(poolId, renderTarget->getWidth());
+            poolId = HashCombine(poolId, renderTarget->getHeight());
+        }
 
         //Find a depth buffer in the pool
         bool bAttached = false;
@@ -526,7 +539,6 @@ namespace Ogre {
 
             if( newDepthBuffer )
             {
-                newDepthBuffer->_setPoolId( poolId );
                 mDepthBufferPool[poolId].push_back( newDepthBuffer );
 
                 bAttached = renderTarget->attachDepthBuffer( newDepthBuffer );
@@ -865,6 +877,14 @@ namespace Ogre {
         optSRGB.possibleValues.push_back("Yes");
         optSRGB.currentValue = optSRGB.possibleValues[0];
         mOptions[optSRGB.name] = optSRGB;
+
+        ConfigOption optHDRDisplay;
+        optHDRDisplay.name = "HDR Display";
+        optHDRDisplay.immutable = false;
+        optHDRDisplay.possibleValues.push_back("No");
+        optHDRDisplay.possibleValues.push_back("Yes");
+        optHDRDisplay.currentValue = optHDRDisplay.possibleValues[0];
+        mOptions[optHDRDisplay.name] = optHDRDisplay;
 
 #if OGRE_NO_QUAD_BUFFER_STEREO == 0
         ConfigOption optStereoMode;

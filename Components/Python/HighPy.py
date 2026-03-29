@@ -5,6 +5,9 @@
 
 import os
 import math
+import struct
+
+from typing import Union
 
 import Ogre
 import Ogre.Bites
@@ -225,8 +228,7 @@ def window_pixel_data(window_name: str, compositor_name: str | None = None, text
     @param compositor_name: name of the compositor
     @param texture_name: name of the texture
     @param mrt_index: index of the MRT
-    @retval 0: bytearray holding the pixel data
-    @retval 1: tuple `(bytes per pixel, height, width, channels)`
+    @return: pixel data as a memoryview
     """
     assert _ctx is not None, "call window_create first"
     assert window_name in _ctx.windows, f"no window named: {window_name}"
@@ -247,28 +249,32 @@ def window_pixel_data(window_name: str, compositor_name: str | None = None, text
         dst_type = tex.getFormat()
         rtarget = tex.getBuffer().getRenderTarget()
 
+    dtype = 'B'
     if dst_type == Ogre.PF_BYTE_RGB:
-        shape = (1, rtarget.getHeight(), rtarget.getWidth(), 3)
+        shape = (rtarget.getHeight(), rtarget.getWidth(), 3)
     elif dst_type == Ogre.PF_BYTE_RGBA:
-        shape = (1, rtarget.getHeight(), rtarget.getWidth(), 4)
+        shape = (rtarget.getHeight(), rtarget.getWidth(), 4)
     elif dst_type == Ogre.PF_L16 or dst_type == Ogre.PF_DEPTH16:
-        shape = (2, rtarget.getHeight(), rtarget.getWidth(), 1)
+        shape = (rtarget.getHeight(), rtarget.getWidth(), 1)
+        dtype = 'H'
     elif dst_type == Ogre.PF_FLOAT32_R or dst_type == Ogre.PF_DEPTH32F:
-        shape = (4, rtarget.getHeight(), rtarget.getWidth(), 1)
+        shape = (rtarget.getHeight(), rtarget.getWidth(), 1)
+        dtype = 'f'
     else:
         raise ValueError(f"unsupported format: {Ogre.PixelUtil.getFormatName(dst_type)}")
 
-    ret = bytearray(math.prod(shape))
-    pb = Ogre.PixelBox(shape[2], shape[1], 1, dst_type, ret)
+    buf = bytearray(math.prod(shape) * struct.calcsize(dtype))
+    mview = memoryview(buf).cast(dtype, shape)
+    pb = Ogre.PixelBox(mview)
     rtarget.copyContentsToMemory(pb, pb)
 
-    return ret, shape
+    return mview
 
-def imshow(window_name: str, img_path: str | os.PathLike):
+def imshow(window_name: str, img_src: Union[str, os.PathLike, memoryview, "np.ndarray"]):
     """!
     show an image in the window
     @param window_name: name of the window
-    @param img_path: path to the image file
+    @param img_src: image data or path to the image file
     """
     assert _ctx is not None, "call window_create first"
     assert window_name in _ctx.windows, f"no window named: {window_name}"
@@ -278,9 +284,23 @@ def imshow(window_name: str, img_path: str | os.PathLike):
         window_data.background = _create_image_background(_ctx.windows[window_name].scn_mgr, window_name)
 
     img = Ogre.Image()
-    img.load(str(img_path), Ogre.RGN_DEFAULT)
+
+    if hasattr(img_src, "shape"):
+        img.loadDynamicImage(img_src)
+    else: # load from file
+        img.load(str(img_src), Ogre.RGN_DEFAULT)
 
     window_data.background.loadImage(img)
+
+def imwrite(filename, imgdata: Union[memoryview, "np.ndarray"]):
+    """!
+    Save an image to a file.
+    @param filename: The name of the file to save the image to.
+    @param imgdata: The pixel data of the image. Should be a memoryview or numpy array
+    """
+    im = Ogre.Image()
+    im.loadDynamicImage(imgdata)
+    im.save(filename)
 
 def camera_intrinsics(window_name: str, K, imsize):
     """!
@@ -306,7 +326,7 @@ def camera_intrinsics(window_name: str, K, imsize):
     fovy = math.atan2(K[1][2], K[1][1]) + math.atan2(imsize[1] - K[1][2], K[1][1])
     cam.setFOVy(fovy)
 
-def mesh_show(window_name: str, mesh_path: str | os.PathLike, rot_mat = None, position = (0, 0, 0), material_name: str | None = None):
+def mesh_show(window_name: str, mesh_path: str | os.PathLike, rot_mat = None, position = (0, 0, 0), material_name: str | None = None, entity_name: str | None = None):
     """!
     show a mesh in the window
     @param window_name: name of the window
@@ -314,16 +334,21 @@ def mesh_show(window_name: str, mesh_path: str | os.PathLike, rot_mat = None, po
     @param rot_mat: 3x3 rotation matrix
     @param position: 3x1 translation vector
     @param material_name: optional material name to use instead of the default
+    @param entity_name: optional entity name to allow multiple instances of the same mesh
     """
     assert _ctx is not None, "call window_create first"
     assert window_name in _ctx.windows, f"no window named: {window_name}"
 
     mesh_path = str(mesh_path)
     scn_mgr = _ctx.windows[window_name].scn_mgr
-    if scn_mgr.hasEntity(mesh_path):
-        ent = scn_mgr.getEntity(mesh_path)
+
+    if entity_name is None:
+        entity_name = mesh_path
+
+    if scn_mgr.hasEntity(entity_name):
+        ent = scn_mgr.getEntity(entity_name)
     else:
-        ent = scn_mgr.createEntity(mesh_path, mesh_path, Ogre.RGN_DEFAULT)
+        ent = scn_mgr.createEntity(entity_name, mesh_path, Ogre.RGN_DEFAULT)
         scn_mgr.getRootSceneNode().createChildSceneNode().attachObject(ent)
 
     if material_name:

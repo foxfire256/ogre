@@ -28,6 +28,7 @@ Copyright (c) 2000-2014 Torus Knot Software Ltd
 
 #include "OgreGL3PlusRenderSystem.h"
 
+#include "OgreGL3PlusFrameBufferObject.h"
 #include "OgreGLUtil.h"
 #include "OgreRenderSystem.h"
 #include "OgreLogManager.h"
@@ -53,7 +54,7 @@ Copyright (c) 2000-2014 Torus Knot Software Ltd
 #include "OgreGL3PlusPixelFormat.h"
 #include "OgreGL3PlusStateCacheManager.h"
 #include "OgreGLSLProgramCommon.h"
-#include "OgreGL3PlusFBOMultiRenderTarget.h"
+#include "OgreGLMultiRenderTarget.h"
 #include "OgreSPIRVShaderFactory.h"
 
 
@@ -467,7 +468,7 @@ namespace Ogre {
         return rsc;
     }
 
-    void GL3PlusRenderSystem::initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget* primary)
+    void GL3PlusRenderSystem::initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget*)
     {
         mProgramManager = new GLSLProgramManager(this);
         // Create GLSL shader factory
@@ -587,24 +588,12 @@ namespace Ogre {
 
             fireEvent("RenderSystemCapabilitiesCreated");
 
-            initialiseFromRenderSystemCapabilities(mCurrentCapabilities, (RenderTarget *) win);
+            initialiseFromRenderSystemCapabilities(mCurrentCapabilities);
 
             // Initialise the main context
             _oneTimeContextInitialization();
             if (mCurrentContext)
                 mCurrentContext->setInitialized();
-        }
-
-        if ( win->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH )
-        {
-            // Unlike D3D9, OGL doesn't allow sharing the main depth buffer, so keep them separate.
-            GL3PlusContext *windowContext = dynamic_cast<GLRenderTarget*>(win)->getContext();
-            auto depthBuffer =
-                new GLDepthBufferCommon(DepthBuffer::POOL_DEFAULT, this, windowContext, 0, 0, win, true);
-
-            mDepthBufferPool[depthBuffer->getPoolId()].push_back( depthBuffer );
-
-            win->attachDepthBuffer( depthBuffer );
         }
 
         return win;
@@ -634,7 +623,7 @@ namespace Ogre {
                                                          fbo->getHeight(), fbo->getFSAA() );
             }
 
-            return new GLDepthBufferCommon(0, this, mCurrentContext, depthBuffer, stencilBuffer,
+            return new GLDepthBufferCommon(this, mCurrentContext, depthBuffer, stencilBuffer,
                                            renderTarget, false);
         }
 
@@ -643,56 +632,9 @@ namespace Ogre {
 
     MultiRenderTarget* GL3PlusRenderSystem::createMultiRenderTarget(const String & name)
     {
-        MultiRenderTarget* retval =
-            new GL3PlusFBOMultiRenderTarget(name);
+        MultiRenderTarget* retval = new GLMultiRenderTarget(name, new GL3PlusFrameBufferObject());
         attachRenderTarget(*retval);
         return retval;
-    }
-
-    void GL3PlusRenderSystem::destroyRenderWindow(const String& name)
-    {
-        // Find it to remove from list.
-        RenderTarget* pWin = detachRenderTarget(name);
-        OgreAssert(pWin, "unknown RenderWindow name");
-
-        GL3PlusContext *windowContext = dynamic_cast<GLRenderTarget*>(pWin)->getContext();
-
-        // 1 Window <-> 1 Context, should be always true.
-        assert( windowContext );
-
-        bool bFound = false;
-        // Find the depth buffer from this window and remove it.
-        DepthBufferMap::iterator itMap = mDepthBufferPool.begin();
-        DepthBufferMap::iterator enMap = mDepthBufferPool.end();
-
-        while( itMap != enMap && !bFound )
-        {
-            DepthBufferVec::iterator itor = itMap->second.begin();
-            DepthBufferVec::iterator end  = itMap->second.end();
-
-            while( itor != end )
-            {
-                // A DepthBuffer with no depth & stencil pointers is a dummy one,
-                // look for the one that matches the same GL context.
-                auto depthBuffer = static_cast<GLDepthBufferCommon*>(*itor);
-                GL3PlusContext *glContext = depthBuffer->getGLContext();
-
-                if ( glContext == windowContext &&
-                     (depthBuffer->getDepthBuffer() || depthBuffer->getStencilBuffer()) )
-                {
-                    bFound = true;
-
-                    delete *itor;
-                    itMap->second.erase( itor );
-                    break;
-                }
-                ++itor;
-            }
-
-            ++itMap;
-        }
-
-        delete pWin;
     }
 
     void GL3PlusRenderSystem::_setTexture(size_t stage, bool enabled, const TexturePtr &texPtr)
@@ -1478,6 +1420,19 @@ namespace Ogre {
         LogManager::getSingleton().logMessage("**************************************");
     }
 
+    void GL3PlusRenderSystem::bindRenderTarget(RenderTarget* target)
+    {
+        /* Bind a certain render target if it is a FBO. If it is not a FBO, bind the
+            main frame buffer.
+        */
+        if(auto fbo = dynamic_cast<GLRenderTarget*>(target)->getFBO())
+        {
+            fbo->bind(true);
+        }
+        else
+            _getStateCacheManager()->bindGLFrameBuffer( GL_FRAMEBUFFER, 0 );
+    }
+
     void GL3PlusRenderSystem::_setRenderTarget(RenderTarget *target)
     {
         mActiveRenderTarget = target;
@@ -1493,7 +1448,7 @@ namespace Ogre {
             // Check the FBO's depth buffer status
             auto depthBuffer = static_cast<GLDepthBufferCommon*>(target->getDepthBuffer());
 
-            if ( target->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH &&
+            if ( target->getDepthBufferPool() != RBP_NONE &&
                  (!depthBuffer || depthBuffer->getGLContext() != mCurrentContext ) )
             {
                 // Depth is automatically managed and there is no depth buffer attached to this RT
@@ -1501,16 +1456,7 @@ namespace Ogre {
                 setDepthBufferFor( target );
             }
 
-            /* Bind a certain render target if it is a FBO. If it is not a FBO, bind the
-               main frame buffer.
-            */
-            if(auto fbo = gltarget->getFBO())
-            {
-                fbo->determineFBOBufferSharingAllowed(*target);
-                fbo->bind(true);
-            }
-            else
-                _getStateCacheManager()->bindGLFrameBuffer( GL_FRAMEBUFFER, 0 );
+            bindRenderTarget(target);
 
             // Enable / disable sRGB states
             if (target->isHardwareGammaEnabled())
@@ -1634,6 +1580,28 @@ namespace Ogre {
         catch (Exception&)
         {
             return;
+        }
+
+        auto& bufferInfoMap = mCurrentShader[gptype]->getBufferInfoMap();
+        for (const auto& usage : params->getSharedParameters())
+        {
+            auto it = bufferInfoMap.find(usage.getName());
+            auto bufSize = usage.getSharedParams()->getConstantList().size();
+            if (it == bufferInfoMap.end() || bufSize == 0)
+                continue; // TODO warn?
+
+            auto hwBuffer = usage.getSharedParams()->_getHardwareBuffer();
+            if (!hwBuffer || hwBuffer->getSizeInBytes() < bufSize)
+            {
+                auto hbm = static_cast<GL3PlusHardwareBufferManager*>(mHardwareBufferManager);
+                if(it->second.bufferType == GL_UNIFORM_BLOCK)
+                    hwBuffer = hbm->createUniformBuffer(bufSize);
+                else
+                    hwBuffer = hbm->createShaderStorageBuffer(bufSize);
+                usage.getSharedParams()->_setHardwareBuffer(hwBuffer);
+            }
+
+            static_cast<GL3PlusHardwareBuffer*>(hwBuffer.get())->setGLBufferBinding(it->second.binding);
         }
 
         if (mask & (uint16)GPV_GLOBAL)

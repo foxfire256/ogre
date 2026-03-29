@@ -478,6 +478,13 @@ void CompositorInstance::_compileTargetOperations(CompiledState &compiledState)
     for (CompositionTargetPass *target : mTechnique->getTargetPasses())
     {        
         TargetOperation ts(getRenderTarget(target->getOutputName(), target->getOutputSlice()));
+
+        if(!compiledState.empty() && compiledState.back().target == ts.target)
+        {
+            // only the last operation on a target swaps buffers
+            compiledState.back().swapBuffers = false;
+        }
+
         /// Set "only initial" flag, visibilityMask and lodBias according to CompositionTargetPass.
         ts.onlyInitial = target->getOnlyInitial();
         ts.visibilityMask = target->getVisibilityMask();
@@ -738,7 +745,7 @@ void CompositorInstance::createResources(bool forResizeOnly)
 
 void CompositorInstance::setupRenderTarget(RenderTarget* rendTarget, uint16 depthBufferId)
 {
-    if(rendTarget->getDepthBufferPool() != DepthBuffer::POOL_NO_DEPTH)
+    if(rendTarget->getDepthBufferPool() != RBP_NONE)
     {
         //Set DepthBuffer pool for sharing
         rendTarget->setDepthBufferPool( depthBufferId );

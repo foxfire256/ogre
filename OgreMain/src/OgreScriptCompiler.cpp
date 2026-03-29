@@ -1058,6 +1058,7 @@ namespace Ogre
         mIds["unlimited"] = ID_UNLIMITED;
         mIds["2darray"] = ID_2DARRAY; // deprecated and undocumented
         mIds["2d_array"] = ID_2DARRAY;
+        mIds["2d_ms"] = ID_2DMS;
         mIds["alpha"] = ID_ALPHA;
         mIds["gamma"] = ID_GAMMA;
         mIds["anim_texture"] = ID_ANIM_TEXTURE;
@@ -1139,6 +1140,7 @@ namespace Ogre
         mIds["shared_params"] = ID_SHARED_PARAMS;
         mIds["shared_param_named"] = ID_SHARED_PARAM_NAMED;
         mIds["shared_params_ref"] = ID_SHARED_PARAMS_REF;
+        mIds["use_linear_colours"] = ID_USE_LINEAR_COLOURS;
 
         // Particle system
         mIds["particle_system"] = ID_PARTICLE_SYSTEM;

@@ -87,29 +87,29 @@ set(CMAKE_FRAMEWORK_PATH ${CMAKE_FRAMEWORK_PATH} ${OGRE_DEP_SEARCH_PATH})
 if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
     message(STATUS "Building pugixml")
     file(DOWNLOAD
-        https://github.com/zeux/pugixml/releases/download/v1.14/pugixml-1.14.tar.gz
-        ${PROJECT_BINARY_DIR}/pugixml-1.14.tar.gz)
+        https://github.com/zeux/pugixml/releases/download/v1.15/pugixml-1.15.tar.gz
+        ${PROJECT_BINARY_DIR}/pugixml-1.15.tar.gz)
     execute_process(COMMAND ${CMAKE_COMMAND}
-        -E tar xf pugixml-1.14.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+        -E tar xf pugixml-1.15.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
     execute_process(COMMAND ${BUILD_COMMAND_COMMON}
         -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE # this will be linked into a shared lib
-        ${PROJECT_BINARY_DIR}/pugixml-1.14
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/pugixml-1.14)
+        ${PROJECT_BINARY_DIR}/pugixml-1.15
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/pugixml-1.15)
     execute_process(COMMAND ${CMAKE_COMMAND}
-        --build ${PROJECT_BINARY_DIR}/pugixml-1.14 ${BUILD_COMMAND_OPTS})
+        --build ${PROJECT_BINARY_DIR}/pugixml-1.15 ${BUILD_COMMAND_OPTS})
 
     #find_package(Freetype)
     if (NOT FREETYPE_FOUND)
         message(STATUS "Building freetype")
         file(DOWNLOAD
-            https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.gz
-            ${PROJECT_BINARY_DIR}/freetype-2.13.2.tar.gz)
+            https://download.savannah.gnu.org/releases/freetype/freetype-2.14.1.tar.gz
+            ${PROJECT_BINARY_DIR}/freetype-2.14.1.tar.gz)
         execute_process(COMMAND ${CMAKE_COMMAND}
-            -E tar xf freetype-2.13.2.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+            -E tar xf freetype-2.14.1.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
         # patch toolchain for iOS
         execute_process(COMMAND ${CMAKE_COMMAND} -E copy
             ${PROJECT_SOURCE_DIR}/CMake/toolchain/ios.toolchain.xcode.cmake
-            freetype-2.13.2/builds/cmake/iOS.cmake
+            freetype-2.14.1/builds/cmake/iOS.cmake
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
         execute_process(COMMAND ${BUILD_COMMAND_COMMON}
             -DBUILD_SHARED_LIBS=${OGREDEPS_SHARED}
@@ -117,28 +117,28 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
             -DCMAKE_DISABLE_FIND_PACKAGE_HarfBuzz=TRUE
             -DCMAKE_DISABLE_FIND_PACKAGE_BZip2=TRUE
             -DCMAKE_DISABLE_FIND_PACKAGE_BrotliDec=TRUE
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.12
             # workaround for broken iOS toolchain in freetype
-            -DPROJECT_SOURCE_DIR=${PROJECT_BINARY_DIR}/freetype-2.13.2
-            ${PROJECT_BINARY_DIR}/freetype-2.13.2
-            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/freetype-2.13.2/objs)
+            -DPROJECT_SOURCE_DIR=${PROJECT_BINARY_DIR}/freetype-2.14.1
+            ${PROJECT_BINARY_DIR}/freetype-2.14.1
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/freetype-2.14.1/objs)
         execute_process(COMMAND ${CMAKE_COMMAND}
-            --build ${PROJECT_BINARY_DIR}/freetype-2.13.2/objs ${BUILD_COMMAND_OPTS})
+            --build ${PROJECT_BINARY_DIR}/freetype-2.14.1/objs ${BUILD_COMMAND_OPTS})
     endif()
 
     if(MSVC OR MINGW OR SKBUILD) # other platforms dont need this
         message(STATUS "Building SDL2")
         file(DOWNLOAD
-            https://libsdl.org/release/SDL2-2.32.8.tar.gz
-            ${PROJECT_BINARY_DIR}/SDL2-2.32.8.tar.gz)
+            https://libsdl.org/release/SDL2-2.32.10.tar.gz
+            ${PROJECT_BINARY_DIR}/SDL2-2.32.10.tar.gz)
         execute_process(COMMAND ${CMAKE_COMMAND} 
-            -E tar xf SDL2-2.32.8.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+            -E tar xf SDL2-2.32.10.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
         execute_process(COMMAND ${CMAKE_COMMAND}
             -E make_directory ${PROJECT_BINARY_DIR}/SDL2-build)
         execute_process(COMMAND ${BUILD_COMMAND_COMMON}
             -DSDL_STATIC=FALSE
             -DCMAKE_INSTALL_LIBDIR=lib
-            ${PROJECT_BINARY_DIR}/SDL2-2.32.8
+            ${PROJECT_BINARY_DIR}/SDL2-2.32.10
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/SDL2-build)
         execute_process(COMMAND ${CMAKE_COMMAND}
             --build ${PROJECT_BINARY_DIR}/SDL2-build ${BUILD_COMMAND_OPTS})
@@ -161,10 +161,10 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
 
       message(STATUS "Building Assimp")
       file(DOWNLOAD
-              https://github.com/assimp/assimp/archive/refs/tags/v6.0.2.tar.gz
-          ${PROJECT_BINARY_DIR}/v6.0.2.tar.gz)
+              https://github.com/assimp/assimp/archive/refs/tags/v6.0.3.tar.gz
+          ${PROJECT_BINARY_DIR}/v6.0.3.tar.gz)
       execute_process(COMMAND ${CMAKE_COMMAND}
-          -E tar xf v6.0.2.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+          -E tar xf v6.0.3.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
       execute_process(COMMAND ${BUILD_COMMAND_COMMON}
           -DZLIB_ROOT=${OGREDEPS_PATH}
           -DBUILD_SHARED_LIBS=OFF
@@ -172,10 +172,10 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
           -DASSIMP_NO_EXPORT=TRUE
           -DASSIMP_BUILD_OGRE_IMPORTER=OFF
           -DASSIMP_BUILD_ASSIMP_TOOLS=OFF
-          ${PROJECT_BINARY_DIR}/assimp-6.0.2
-          WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/assimp-6.0.2)
+          ${PROJECT_BINARY_DIR}/assimp-6.0.3
+          WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/assimp-6.0.3)
       execute_process(COMMAND ${CMAKE_COMMAND}
-        --build ${PROJECT_BINARY_DIR}/assimp-6.0.2 ${BUILD_COMMAND_OPTS})
+        --build ${PROJECT_BINARY_DIR}/assimp-6.0.3 ${BUILD_COMMAND_OPTS})
     endif()
 
     message(STATUS "Building Bullet")
@@ -198,13 +198,14 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
         -DBUILD_ENET=OFF
         -DBUILD_UNIT_TESTS=OFF
         -DCMAKE_RELWITHDEBINFO_POSTFIX= # fixes FindBullet on MSVC
+        -DCMAKE_DEBUG_POSTFIX= # need to remove postfix so default find_package detects Bullet correctly
         -DBUILD_CLSOCKET=OFF
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         ${PROJECT_BINARY_DIR}/bullet3-3.25
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/bullet3-3.25)
     execute_process(COMMAND ${CMAKE_COMMAND}
         --build ${PROJECT_BINARY_DIR}/bullet3-3.25 ${BUILD_COMMAND_OPTS})
-    set(BULLET_ROOT ${OGREDEPS_PATH})
+    set(Bullet_ROOT ${OGREDEPS_PATH})
 endif()
 
 #######################################################################

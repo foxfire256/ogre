@@ -94,6 +94,10 @@ namespace Ogre {
 
         // Adjust format if required
         mFormat = TextureManager::getSingleton().getNativeFormat(mTextureType, mFormat, mUsage);
+
+        if(mFormat == PF_BYTE_RGB && mHwGamma)
+            mFormat = PF_BYTE_RGBA; // we want a colour renderable format for mipmaps, so switch to RGBA
+
         GLenum texTarget = getGLES2TextureTarget();
 
         // Generate texture name
@@ -200,8 +204,10 @@ namespace Ogre {
                             width, height, depth, 0, 
                             size, &tmpdata[0]);
                         break;
+                    case TEX_TYPE_2D_MULTISAMPLE:
                     case TEX_TYPE_EXTERNAL_OES:
-                        OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Attempt to create mipmap for TEX_TYPE_EXTERNAL_OES, should never happen", "GLES2Texture::_createGLTexResource");
+                        OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
+                                    "Attempt to allocate storage for unsupported format");
                 };
                 
                 if(width > 1)
@@ -232,6 +238,8 @@ namespace Ogre {
                 case TEX_TYPE_2D_ARRAY:
                 case TEX_TYPE_3D:
                     OGRE_CHECK_GL_ERROR(glTexStorage3D(texTarget, GLsizei(mNumMipmaps+1), internalformat, GLsizei(width), GLsizei(height), GLsizei(depth)));
+                    break;
+                case TEX_TYPE_2D_MULTISAMPLE:
                     break;
                 case TEX_TYPE_EXTERNAL_OES:
                     // Not available for TEX_TYPE_EXTERNAL_OES

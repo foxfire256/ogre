@@ -92,7 +92,6 @@ namespace Ogre {
         mIsFullScreen = fullScreen;
         mClosed = false;        
         mDisplayFrequency = 0;
-        mDepthBufferPoolId = DepthBuffer::POOL_DEFAULT;
         mColourDepth = mIsFullScreen? 32 : GetDeviceCaps(GetDC(0), BITSPIXEL);
         int left = -1; // Defaults to screen center
         int top = -1; // Defaults to screen center
@@ -102,6 +101,7 @@ namespace Ogre {
         String border;
         bool outerSize = false;
         bool hwGamma = false;
+        bool hdrDisplay = false;
         bool enableDoubleClick = false;
         int monitorIndex = -1;
         HMONITOR hMonitor = NULL;
@@ -123,8 +123,8 @@ namespace Ogre {
 
             if ((opt = miscParams->find("depthBuffer")) != end)
             {
-                mDepthBufferPoolId = StringConverter::parseBool(opt->second) ?
-                                                DepthBuffer::POOL_DEFAULT : DepthBuffer::POOL_NO_DEPTH;
+                LogManager::getSingleton().logWarning(
+                    "Win32Window::create(): depthBuffer option is not supported on OpenGL.");
             }
 
             if ((opt = miscParams->find("vsync")) != end)
@@ -144,6 +144,9 @@ namespace Ogre {
 
             if ((opt = miscParams->find("gamma")) != end)
                 hwGamma = StringConverter::parseBool(opt->second);
+
+            if ((opt = miscParams->find("hdrDisplay")) != end)
+                StringConverter::parse(opt->second, hdrDisplay);
 
 #if OGRE_NO_QUAD_BUFFER_STEREO == 0
 			if ((opt = miscParams->find("stereoMode")) != end)
@@ -397,14 +400,32 @@ namespace Ogre {
         {
             int testFsaa = mFSAA;
             bool testHwGamma = hwGamma;
-            bool formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled);
+            bool testHdr = hdrDisplay;
+
+            if(testHdr)
+            {
+                // hdr typically does not support fsaa or hw gamma
+                testHwGamma = false;
+                testFsaa = 0;
+            }
+
+            bool formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled, testHdr);
             if (!formatOk)
             {
-                if (mFSAA > 0)
+                if(testHdr)
+                {
+                    // try without HDR
+                    testHdr = false;
+                    testHwGamma = hwGamma;
+                    testFsaa = mFSAA;
+                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled, testHdr);
+                }
+
+                if (!formatOk && mFSAA > 0)
                 {
                     // try without FSAA
                     testFsaa = 0;
-                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled);
+                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled, testHdr);
                 }
 
                 if (!formatOk && hwGamma)
@@ -412,7 +433,7 @@ namespace Ogre {
                     // try without sRGB
                     testHwGamma = false;
                     testFsaa = mFSAA;
-                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled);
+                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled, testHdr);
                 }
 
                 if (!formatOk && hwGamma && (mFSAA > 0))
@@ -420,7 +441,7 @@ namespace Ogre {
                     // try without both
                     testHwGamma = false;
                     testFsaa = 0;
-                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled);
+                    formatOk = mGLSupport.selectPixelFormat(mHDC, mColourDepth, testFsaa, testHwGamma, mStereoEnabled, testHdr);
                 }
 
                 if (!formatOk)
@@ -430,7 +451,7 @@ namespace Ogre {
             }
             // record what gamma option we used in the end
             // this will control enabling of sRGB state flags when used
-            mHwGamma = testHwGamma;
+            mHwGamma = testHwGamma || testHdr; // hdr implies hw gamma
             mFSAA = testFsaa;
         }
         if (mOwnsGLContext)

@@ -129,7 +129,7 @@ ShaderGenerator& ShaderGenerator::getSingleton()
 ShaderGenerator::ShaderGenerator() :
     mActiveSceneMgr(NULL), mShaderLanguage(""),
     mActiveViewportValid(false), mVSOutputCompactPolicy(VSOCP_LOW),
-    mCreateShaderOverProgrammablePass(false), mIsFinalizing(false)
+    mCreateShaderOverProgrammablePass(false), mIsFinalizing(false), mTargetLinearColours(false)
 {
     mLightCount[0]              = 0;
     mLightCount[1]              = 0;
@@ -928,6 +928,7 @@ bool ShaderGenerator::cloneShaderBasedTechniques(Material& srcMat, Material& dst
         if (schemesToRemove.find(pDstTech->_getSchemeIndex()) != schemesToRemove.end())
         {
             dstMat.removeTechnique(ti);
+            dstMat._notifyNeedsRecompile();
         }
     }
     dstMat.prepare(); // ensure supported techniques are compiled, after removing techniques
@@ -959,6 +960,11 @@ bool ShaderGenerator::cloneShaderBasedTechniques(Material& srcMat, Material& dst
                 {
                     if (t->hasRenderState(pi))
                     {
+                        // copy non-FFP marks
+                        auto any = t->getSourceTechnique()->getPass(pi)->getUserObjectBindings().getUserAny("_RTSS_nonFFP_TUS");
+                        if (auto dstTechnique = findSourceTechnique(dstMat, srcFromTechniqueScheme, false))
+                            dstTechnique->getPass(pi)->getUserObjectBindings().setUserAny("_RTSS_nonFFP_TUS", any);
+
                         //copy the custom render state from the source material to the destination material
                         RenderState* srcRenderState = t->getRenderState(pi);
                         RenderState* dstRenderState = getRenderState(srcToTechniqueScheme, dstMat, pi);
